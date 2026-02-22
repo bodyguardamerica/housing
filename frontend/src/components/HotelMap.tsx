@@ -130,7 +130,7 @@ export function HotelMap({ rooms }: HotelMapProps) {
 }
 
 function HotelMarker({ hotel }: { hotel: HotelMarkerData }) {
-  const [icon, setIcon] = useState<L.Icon | null>(null)
+  const [icon, setIcon] = useState<L.Icon | L.DivIcon | null>(null)
 
   useEffect(() => {
     // Import Leaflet dynamically
