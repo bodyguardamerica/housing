@@ -17,7 +17,7 @@ export async function GET() {
 
     // Build config object
     const configMap: Record<string, unknown> = {}
-    for (const config of configs || []) {
+    for (const config of (configs || []) as Array<{ key: string; value: unknown }>) {
       configMap[config.key] = config.value
     }
 
