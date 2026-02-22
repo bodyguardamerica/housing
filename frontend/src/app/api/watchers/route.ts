@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       .from('app_config')
       .select('value')
       .eq('key', 'current_year')
-      .single()
+      .single() as { data: { value: unknown } | null }
 
     const currentYear = Number(yearConfig?.value) || new Date().getFullYear()
 
@@ -172,7 +172,7 @@ export async function DELETE(request: NextRequest) {
       .from('watchers')
       .select('id, manage_token_hash')
       .eq('id', watcherId)
-      .single()
+      .single() as { data: { id: string; manage_token_hash: string } | null; error: Error | null }
 
     if (fetchError || !watcher) {
       return NextResponse.json(

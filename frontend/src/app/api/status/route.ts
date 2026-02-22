@@ -11,14 +11,14 @@ export async function GET() {
       .from('app_config')
       .select('value')
       .eq('key', 'scraper_active')
-      .single()
+      .single() as { data: { value: unknown } | null }
 
     // Get banner message
     const { data: bannerConfig } = await supabase
       .from('app_config')
       .select('value')
       .eq('key', 'site_banner_message')
-      .single()
+      .single() as { data: { value: unknown } | null }
 
     // Get last scrape
     const { data: lastScrape } = await supabase
@@ -26,7 +26,7 @@ export async function GET() {
       .select('*')
       .order('started_at', { ascending: false })
       .limit(1)
-      .single()
+      .single() as { data: Record<string, unknown> | null }
 
     // Get scrapes in last hour
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()

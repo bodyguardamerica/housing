@@ -72,14 +72,14 @@ export async function GET(request: NextRequest) {
       .eq('status', 'success')
       .order('completed_at', { ascending: false })
       .limit(1)
-      .single()
+      .single() as { data: { completed_at: string; status: string } | null }
 
     // Get scraper active status from config
     const { data: configData } = await supabase
       .from('app_config')
       .select('value')
       .eq('key', 'scraper_active')
-      .single()
+      .single() as { data: { value: unknown } | null }
 
     // Calculate metadata
     const roomsData = (rooms || []) as RoomAvailability[]
