@@ -102,27 +102,29 @@ export async function POST(request: NextRequest) {
     const manageTokenHash = hashToken(manageToken)
 
     // Create watcher
+    const watcherData = {
+      email: body.email || null,
+      discord_webhook_url: body.discord_webhook_url || null,
+      phone_number: body.phone_number || null,
+      push_subscription: body.push_subscription || null,
+      manage_token_hash: manageTokenHash,
+      hotel_id: body.hotel_id || null,
+      max_price: body.max_price || null,
+      max_distance: body.max_distance || null,
+      require_skywalk: body.require_skywalk || false,
+      room_type_pattern: body.room_type_pattern || null,
+      cooldown_minutes: body.cooldown_minutes || 15,
+      year: currentYear,
+      active: true,
+      notifications_sent_today: 0,
+      max_notifications_per_day: 50,
+    }
+
     const { data: watcher, error } = await supabase
       .from('watchers')
-      .insert({
-        email: body.email || null,
-        discord_webhook_url: body.discord_webhook_url || null,
-        phone_number: body.phone_number || null,
-        push_subscription: body.push_subscription || null,
-        manage_token_hash: manageTokenHash,
-        hotel_id: body.hotel_id || null,
-        max_price: body.max_price || null,
-        max_distance: body.max_distance || null,
-        require_skywalk: body.require_skywalk || false,
-        room_type_pattern: body.room_type_pattern || null,
-        cooldown_minutes: body.cooldown_minutes || 15,
-        year: currentYear,
-        active: true,
-        notifications_sent_today: 0,
-        max_notifications_per_day: 50,
-      })
+      .insert(watcherData as never)
       .select('id')
-      .single()
+      .single() as { data: { id: string } | null; error: Error | null }
 
     if (error) {
       throw error
