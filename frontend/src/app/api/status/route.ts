@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import type { StatusResponse } from '@/lib/types'
+import type { StatusResponse, ScrapeRun } from '@/lib/types'
 
 export async function GET() {
   const supabase = createServerClient()
@@ -26,7 +26,7 @@ export async function GET() {
       .select('*')
       .order('started_at', { ascending: false })
       .limit(1)
-      .single() as { data: Record<string, unknown> | null }
+      .single() as { data: ScrapeRun | null }
 
     // Get scrapes in last hour
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
