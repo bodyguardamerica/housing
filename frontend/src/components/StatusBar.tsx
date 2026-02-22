@@ -1,11 +1,13 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import {
-  getRelativeTime,
   getFreshnessStatus,
   getFreshnessColor,
 } from '@/lib/utils'
+
+const REFRESH_INTERVAL = 60 // Scraper runs every 60 seconds
 
 interface StatusBarProps {
   lastScrapeAt: string | null
@@ -20,6 +22,25 @@ export function StatusBar({
   totalHotels,
   scraperActive,
 }: StatusBarProps) {
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(REFRESH_INTERVAL)
+
+  useEffect(() => {
+    const calculateTimeUntilRefresh = () => {
+      if (!lastScrapeAt) return REFRESH_INTERVAL
+      const secondsAgo = Math.floor((Date.now() - new Date(lastScrapeAt).getTime()) / 1000)
+      const remaining = REFRESH_INTERVAL - (secondsAgo % REFRESH_INTERVAL)
+      return remaining > 0 ? remaining : REFRESH_INTERVAL
+    }
+
+    setSecondsUntilRefresh(calculateTimeUntilRefresh())
+
+    const interval = setInterval(() => {
+      setSecondsUntilRefresh(calculateTimeUntilRefresh())
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [lastScrapeAt])
+
   const secondsAgo = lastScrapeAt
     ? Math.floor((Date.now() - new Date(lastScrapeAt).getTime()) / 1000)
     : 999999
@@ -35,7 +56,7 @@ export function StatusBar({
             <div className={cn('w-3 h-3 rounded-full', freshnessColor)} />
             <span className="text-sm text-gray-600">
               {lastScrapeAt
-                ? `Updated ${getRelativeTime(secondsAgo)}`
+                ? `Next update in ${secondsUntilRefresh}s`
                 : 'No data yet'}
             </span>
           </div>
