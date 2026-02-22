@@ -10,9 +10,9 @@ export async function GET() {
       .from('app_config')
       .select('value')
       .eq('key', 'current_year')
-      .single()
+      .single() as { data: { value: unknown } | null }
 
-    const currentYear = yearConfig?.value || new Date().getFullYear()
+    const currentYear = Number(yearConfig?.value) || new Date().getFullYear()
 
     // Fetch hotels for current year
     const { data: hotels, error } = await supabase
