@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       .from('hotels')
       .select('name')
       .eq('id', hotelId)
-      .single()
+      .single() as { data: { name: string } | null }
 
     // Query room_availability_history view or room_snapshots directly
     let query = supabase
@@ -39,7 +39,15 @@ export async function GET(request: NextRequest) {
       query = query.ilike('room_type', `%${roomType}%`)
     }
 
-    const { data: snapshots, error } = await query
+    const { data: snapshots, error } = await query as {
+      data: Array<{
+        scraped_at: string
+        room_type: string
+        available_count: number
+        total_price: number
+      }> | null
+      error: Error | null
+    }
 
     if (error) {
       throw error
