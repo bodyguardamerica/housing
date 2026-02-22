@@ -234,6 +234,44 @@ class Database:
 
         return error_count / total
 
+    async def get_latest_room_keys(self, year: int) -> dict[tuple[str, str], dict]:
+        """
+        Get all (hotel_id, room_type) combinations from the latest successful scrape.
+        Returns a dict mapping (hotel_id, room_type) -> snapshot data.
+        """
+        # Get the latest successful scrape with changes
+        result = self._get("scrape_runs", {
+            "status": "eq.success",
+            "year": f"eq.{year}",
+            "no_changes": "eq.false",
+            "select": "id",
+            "order": "completed_at.desc",
+            "limit": "1",
+        })
+
+        if not result:
+            return {}
+
+        scrape_id = result[0]["id"]
+
+        # Get all snapshots from that scrape
+        snapshots = self._get("room_snapshots", {
+            "scrape_run_id": f"eq.{scrape_id}",
+            "select": "hotel_id,room_type,check_in,check_out,nightly_rate,raw_block_data",
+        })
+
+        room_keys = {}
+        for s in snapshots:
+            key = (s["hotel_id"], s["room_type"])
+            room_keys[key] = {
+                "check_in": s["check_in"],
+                "check_out": s["check_out"],
+                "nightly_rate": s["nightly_rate"],
+                "raw_block_data": s.get("raw_block_data", {}),
+            }
+
+        return room_keys
+
 
 async def process_scrape_result(
     db: Database,
@@ -300,14 +338,19 @@ async def process_multi_night_result(
     Process a multi-night scrape result and store it in the database.
 
     Creates room snapshots comparing against the FULL requested date range.
+    Also marks previously-available rooms as sold out if they're no longer in results.
     """
     from datetime import timedelta
 
     hotels_processed = set()
     rooms_found = 0
+    processed_room_keys = set()  # Track (db_hotel_id, room_type) we've processed
 
     # Calculate the total nights in the requested range
     total_nights_in_range = (result.check_out - result.check_in).days
+
+    # Get previously available room keys to detect sold-out rooms
+    previous_room_keys = await db.get_latest_room_keys(year)
 
     # First, upsert all hotels to ensure we have their IDs
     hotel_id_map: dict[int, str] = {}  # passkey_id -> db UUID
@@ -387,6 +430,36 @@ async def process_multi_night_result(
             },
         ))
         rooms_found += 1
+        processed_room_keys.add((db_hotel_id, room_type))
+
+    # Create "sold out" snapshots for rooms that were previously available but not in current results
+    sold_out_count = 0
+    for (prev_hotel_id, prev_room_type), prev_data in previous_room_keys.items():
+        if (prev_hotel_id, prev_room_type) not in processed_room_keys:
+            # This room was available before but not in current scrape - mark as sold out
+            await db.create_room_snapshot(RoomSnapshotCreate(
+                scrape_run_id=scrape_run_id,
+                hotel_id=prev_hotel_id,
+                room_type=prev_room_type,
+                available_count=0,
+                nightly_rate=prev_data.get("nightly_rate", 0),
+                total_price=prev_data.get("nightly_rate", 0) * total_nights_in_range,
+                check_in=result.check_in,
+                check_out=result.check_out,
+                year=year,
+                raw_block_data={
+                    "nights": [],
+                    "partial_availability": False,
+                    "nights_available": 0,
+                    "total_nights": total_nights_in_range,
+                    "sold_out": True,
+                },
+            ))
+            sold_out_count += 1
+            logger.info(f"Marked {prev_room_type} at hotel {prev_hotel_id} as sold out")
+
+    if sold_out_count > 0:
+        logger.info(f"Marked {sold_out_count} room types as sold out")
 
     return len(hotels_processed), rooms_found
 
