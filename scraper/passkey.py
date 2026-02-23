@@ -1,5 +1,6 @@
 """Passkey API client for scraping hotel availability."""
 
+import html
 import json
 import re
 import logging
@@ -192,13 +193,13 @@ class PasskeyClient:
                     ))
 
                 blocks.append(RoomBlock(
-                    name=block_data.get("name", "Unknown Room"),
+                    name=html.unescape(block_data.get("name", "Unknown Room")),
                     inventory=inventory,
                 ))
 
             hotels.append(HotelResult(
                 id=hotel_data.get("id", 0),
-                name=hotel_data.get("name", "Unknown Hotel"),
+                name=html.unescape(hotel_data.get("name", "Unknown Hotel")),
                 distance_from_event=float(hotel_data.get("distanceFromEvent", 0)),
                 distance_unit=int(hotel_data.get("distanceUnit", 1)),
                 message_map=hotel_data.get("messageMap", ""),
