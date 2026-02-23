@@ -48,6 +48,7 @@ export function AlertModal({ isOpen, onClose, onSave, editingAlert }: AlertModal
       minNightsAvailable: minNightsAvailable ? parseInt(minNightsAvailable) : undefined,
       enabled: editingAlert?.enabled ?? true,
       soundEnabled,
+      fullScreenEnabled: editingAlert?.fullScreenEnabled ?? true,
     })
 
     // Reset form

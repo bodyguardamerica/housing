@@ -202,6 +202,7 @@ export interface LocalAlert {
   maxPrice?: number
   maxDistance?: number
   requireSkywalk?: boolean
+  minNightsAvailable?: number // Minimum nights that must be available
   createdAt: string
   enabled: boolean
   soundEnabled: boolean
