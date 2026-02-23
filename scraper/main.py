@@ -1,6 +1,6 @@
 """FastAPI application for the GenCon Hotels scraper."""
 
-__version__ = "1.1.0"  # Force redeploy - multi-night scraping
+__version__ = "1.2.0"  # Multi-night scraping with 2 min interval
 
 import asyncio
 import logging
