@@ -126,6 +126,23 @@ export default function DashboardPage() {
         />
       )}
 
+      {/* Your Local Alerts */}
+      {alertsLoaded && (
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <AlertList
+            alerts={alerts}
+            onEdit={handleEditAlert}
+            onDelete={deleteAlert}
+            onToggle={toggleAlert}
+            onToggleSound={toggleAlertSound}
+            soundMuted={soundMuted}
+            onToggleMute={toggleMute}
+            onTestSound={testSound}
+            onSyncAlerts={isAuthenticated ? syncAlerts : undefined}
+          />
+        </div>
+      )}
+
       {/* Matched Rooms Section */}
       <MatchedRooms
         matches={matches}
@@ -242,23 +259,6 @@ export default function DashboardPage() {
             </div>
           )}
         </>
-      )}
-
-      {/* Your Local Alerts */}
-      {alertsLoaded && (
-        <div className="mt-8 pt-8 border-t border-gray-200">
-          <AlertList
-            alerts={alerts}
-            onEdit={handleEditAlert}
-            onDelete={deleteAlert}
-            onToggle={toggleAlert}
-            onToggleSound={toggleAlertSound}
-            soundMuted={soundMuted}
-            onToggleMute={toggleMute}
-            onTestSound={testSound}
-            onSyncAlerts={isAuthenticated ? syncAlerts : undefined}
-          />
-        </div>
       )}
 
       {/* Email/Discord Watchers */}
