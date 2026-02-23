@@ -49,6 +49,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('partial_availability', false)
     }
 
+    // Filter out sold-out rooms (available_count = 0) by default
+    const showSoldOut = searchParams.get('show_sold_out') === 'true'
+    if (!showSoldOut) {
+      query = query.gt('available_count', 0)
+    }
+
     // Apply sorting
     const sortColumn = {
       distance: 'distance_from_icc',
