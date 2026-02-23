@@ -189,7 +189,7 @@ export interface RoomFilters {
   roomType?: string
   checkIn?: string
   checkOut?: string
-  showPartial?: boolean
+  showSoldOut?: boolean
   sortBy?: 'distance' | 'price' | 'hotel_name' | 'available'
   sortDir?: 'asc' | 'desc'
 }

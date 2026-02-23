@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
   const roomType = searchParams.get('room_type')
   const checkIn = searchParams.get('check_in')
   const checkOut = searchParams.get('check_out')
-  const showPartial = searchParams.get('show_partial')
   const sortBy = searchParams.get('sort_by') || 'distance'
   const sortDir = searchParams.get('sort_dir') || 'asc'
 
@@ -43,10 +42,6 @@ export async function GET(request: NextRequest) {
     }
     if (checkOut) {
       query = query.lte('check_out', checkOut)
-    }
-    // Filter partial availability (default to showing partial)
-    if (showPartial === 'false') {
-      query = query.eq('partial_availability', false)
     }
 
     // Filter out sold-out rooms (available_count = 0) by default

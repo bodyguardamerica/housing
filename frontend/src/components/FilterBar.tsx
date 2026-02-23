@@ -28,7 +28,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
     filters.skywalkOnly ||
     filters.hotelName ||
     filters.roomType ||
-    filters.showPartial !== undefined
+    filters.showSoldOut
 
   return (
     <div className="bg-white shadow rounded-lg p-4 mb-6">
@@ -160,20 +160,20 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
             </label>
           </div>
 
-          {/* Show Partial Availability Toggle */}
+          {/* Show Sold Out Toggle */}
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
-              id="show-partial"
-              checked={filters.showPartial ?? false}
-              onChange={(e) => updateFilter('showPartial', e.target.checked)}
+              id="show-sold-out"
+              checked={filters.showSoldOut ?? false}
+              onChange={(e) => updateFilter('showSoldOut', e.target.checked)}
               className="w-4 h-4 text-gencon-blue border-gray-300 rounded focus:ring-gencon-blue"
             />
             <label
-              htmlFor="show-partial"
+              htmlFor="show-sold-out"
               className="text-sm font-medium text-gray-700"
             >
-              Show partial availability
+              Show sold out rooms
             </label>
           </div>
 
