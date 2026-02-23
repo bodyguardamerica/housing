@@ -192,3 +192,31 @@ export interface RoomFilters {
   sortBy?: 'distance' | 'price' | 'hotel_name' | 'available'
   sortDir?: 'asc' | 'desc'
 }
+
+// Local alert types (stored in localStorage)
+export interface LocalAlert {
+  id: string
+  name: string
+  hotelName?: string // Partial match on hotel name
+  maxPrice?: number
+  maxDistance?: number
+  requireSkywalk?: boolean
+  minNightsAvailable?: number // For partial availability filtering
+  createdAt: string
+  enabled: boolean
+  soundEnabled: boolean
+}
+
+export interface AlertMatch {
+  alertId: string
+  alertName: string
+  room: RoomAvailability
+  matchedAt: string
+}
+
+export interface AlertsState {
+  alerts: LocalAlert[]
+  matches: AlertMatch[]
+  lastMatchCheck: string | null
+  soundMuted: boolean
+}
