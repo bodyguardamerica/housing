@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { LocalAlert } from '@/lib/types'
 
 interface AlertModalProps {
@@ -11,15 +11,26 @@ interface AlertModalProps {
 }
 
 export function AlertModal({ isOpen, onClose, onSave, editingAlert }: AlertModalProps) {
-  const [name, setName] = useState(editingAlert?.name || '')
-  const [hotelName, setHotelName] = useState(editingAlert?.hotelName || '')
-  const [maxPrice, setMaxPrice] = useState(editingAlert?.maxPrice?.toString() || '')
-  const [maxDistance, setMaxDistance] = useState(editingAlert?.maxDistance?.toString() || '')
-  const [requireSkywalk, setRequireSkywalk] = useState(editingAlert?.requireSkywalk || false)
-  const [minNightsAvailable, setMinNightsAvailable] = useState(
-    editingAlert?.minNightsAvailable?.toString() || ''
-  )
-  const [soundEnabled, setSoundEnabled] = useState(editingAlert?.soundEnabled ?? true)
+  const [name, setName] = useState('')
+  const [hotelName, setHotelName] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [maxDistance, setMaxDistance] = useState('')
+  const [requireSkywalk, setRequireSkywalk] = useState(false)
+  const [minNightsAvailable, setMinNightsAvailable] = useState('')
+  const [soundEnabled, setSoundEnabled] = useState(true)
+
+  // Reset form when modal opens or editingAlert changes
+  useEffect(() => {
+    if (isOpen) {
+      setName(editingAlert?.name || '')
+      setHotelName(editingAlert?.hotelName || '')
+      setMaxPrice(editingAlert?.maxPrice?.toString() || '')
+      setMaxDistance(editingAlert?.maxDistance?.toString() || '')
+      setRequireSkywalk(editingAlert?.requireSkywalk || false)
+      setMinNightsAvailable(editingAlert?.minNightsAvailable?.toString() || '')
+      setSoundEnabled(editingAlert?.soundEnabled ?? true)
+    }
+  }, [isOpen, editingAlert])
 
   if (!isOpen) return null
 

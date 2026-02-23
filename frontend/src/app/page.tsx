@@ -131,6 +131,7 @@ export default function DashboardPage() {
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <AlertList
             alerts={alerts}
+            matches={matches}
             onEdit={handleEditAlert}
             onDelete={deleteAlert}
             onToggle={toggleAlert}

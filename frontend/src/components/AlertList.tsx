@@ -1,10 +1,11 @@
 'use client'
 
-import type { LocalAlert } from '@/lib/types'
+import type { LocalAlert, AlertMatch } from '@/lib/types'
 import { AuthButton } from './AuthButton'
 
 interface AlertListProps {
   alerts: LocalAlert[]
+  matches: AlertMatch[]
   onEdit: (alert: LocalAlert) => void
   onDelete: (id: string) => void
   onToggle: (id: string) => void
@@ -17,6 +18,7 @@ interface AlertListProps {
 
 export function AlertList({
   alerts,
+  matches,
   onEdit,
   onDelete,
   onToggle,
@@ -26,6 +28,11 @@ export function AlertList({
   onTestSound,
   onSyncAlerts,
 }: AlertListProps) {
+  // Count matches per alert
+  const matchCountByAlert = matches.reduce((acc, match) => {
+    acc[match.alertId] = (acc[match.alertId] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -115,6 +122,16 @@ export function AlertList({
                   {!alert.enabled && (
                     <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
                       Disabled
+                    </span>
+                  )}
+                  {alert.enabled && (matchCountByAlert[alert.id] || 0) > 0 && (
+                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded font-medium">
+                      {matchCountByAlert[alert.id]} match{matchCountByAlert[alert.id] > 1 ? 'es' : ''}
+                    </span>
+                  )}
+                  {alert.enabled && !(matchCountByAlert[alert.id] || 0) && (
+                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
+                      0 matches
                     </span>
                   )}
                 </div>
