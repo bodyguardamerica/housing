@@ -25,13 +25,8 @@ serve(async (req) => {
   try {
     const payload: InsertPayload = await req.json()
 
-    // Only process if there's availability
-    if (payload.record.available_count <= 0) {
-      return new Response(
-        JSON.stringify({ message: 'No availability, skipping' }),
-        { headers: { 'Content-Type': 'application/json' } }
-      )
-    }
+    // Note: Availability filtering is now handled by the scraper before calling this function
+    // The scraper only calls this for snapshots with availability (full or partial)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

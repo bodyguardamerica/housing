@@ -41,9 +41,8 @@ export function useRooms(filters: RoomFilters = {}) {
       if (filters.checkOut) {
         params.set('check_out', filters.checkOut)
       }
-      if (filters.showPartial !== undefined) {
-        params.set('show_partial', filters.showPartial.toString())
-      }
+      // Always send show_partial with default of false (hide partial availability by default)
+      params.set('show_partial', (filters.showPartial ?? false).toString())
 
       const response = await fetch(`/api/rooms?${params.toString()}`)
       if (!response.ok) {

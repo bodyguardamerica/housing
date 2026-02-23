@@ -89,6 +89,7 @@ export interface RoomSnapshot {
 export interface RoomAvailability {
   snapshot_id: string
   hotel_id: string
+  passkey_hotel_id: number
   hotel_name: string
   address: string | null
   distance_from_icc: number | null
@@ -201,10 +202,11 @@ export interface LocalAlert {
   maxPrice?: number
   maxDistance?: number
   requireSkywalk?: boolean
-  minNightsAvailable?: number // For partial availability filtering
   createdAt: string
   enabled: boolean
   soundEnabled: boolean
+  fullScreenEnabled: boolean // Show full-screen popup when match found
+  discordWatcherId?: string // Linked Discord watcher ID (if Discord was enabled)
 }
 
 export interface AlertMatch {
@@ -219,4 +221,6 @@ export interface AlertsState {
   matches: AlertMatch[]
   lastMatchCheck: string | null
   soundMuted: boolean
+  alarmSound: 'chime' | 'alert' | 'bell' | 'urgent' | 'gentle'
+  volume: number // 0-1
 }

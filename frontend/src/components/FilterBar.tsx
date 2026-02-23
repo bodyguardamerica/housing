@@ -28,8 +28,6 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
     filters.skywalkOnly ||
     filters.hotelName ||
     filters.roomType ||
-    filters.checkIn !== undefined ||
-    filters.checkOut !== undefined ||
     filters.showPartial !== undefined
 
   return (
@@ -88,7 +86,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
                   e.target.value ? Number(e.target.value) : undefined
                 )
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-gencon-blue"
               placeholder="Any distance"
             />
           </div>
@@ -108,7 +106,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
                   e.target.value ? Number(e.target.value) : undefined
                 )
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-gencon-blue"
               placeholder="Any price"
             />
           </div>
@@ -124,7 +122,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
               onChange={(e) =>
                 updateFilter('hotelName', e.target.value || undefined)
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-gencon-blue"
               placeholder="Search hotels..."
             />
           </div>
@@ -140,7 +138,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
               onChange={(e) =>
                 updateFilter('roomType', e.target.value || undefined)
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-gencon-blue"
               placeholder="e.g., King, Suite..."
             />
           </div>
@@ -162,42 +160,12 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
             </label>
           </div>
 
-          {/* Check-in Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Check-in Date
-            </label>
-            <input
-              type="date"
-              value={filters.checkIn ?? ''}
-              onChange={(e) =>
-                updateFilter('checkIn', e.target.value || undefined)
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
-            />
-          </div>
-
-          {/* Check-out Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Check-out Date
-            </label>
-            <input
-              type="date"
-              value={filters.checkOut ?? ''}
-              onChange={(e) =>
-                updateFilter('checkOut', e.target.value || undefined)
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
-            />
-          </div>
-
           {/* Show Partial Availability Toggle */}
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="show-partial"
-              checked={filters.showPartial ?? true}
+              checked={filters.showPartial ?? false}
               onChange={(e) => updateFilter('showPartial', e.target.checked)}
               className="w-4 h-4 text-gencon-blue border-gray-300 rounded focus:ring-gencon-blue"
             />
@@ -222,7 +190,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
                   e.target.value as RoomFilters['sortBy']
                 )
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-gencon-blue"
             >
               <option value="distance">Distance</option>
               <option value="price">Price</option>
@@ -240,7 +208,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
               onChange={(e) =>
                 updateFilter('sortDir', e.target.value as 'asc' | 'desc')
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-gencon-blue"
             >
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>

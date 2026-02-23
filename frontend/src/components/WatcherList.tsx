@@ -19,9 +19,10 @@ interface Watcher {
 
 interface WatcherListProps {
   onRefresh?: () => void
+  excludeWatcherIds?: string[] // Watcher IDs that are linked to alerts (don't show separately)
 }
 
-export function WatcherList({ onRefresh }: WatcherListProps) {
+export function WatcherList({ onRefresh, excludeWatcherIds = [] }: WatcherListProps) {
   const [watchers, setWatchers] = useState<Watcher[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -88,24 +89,24 @@ export function WatcherList({ onRefresh }: WatcherListProps) {
     }
   }
 
+  // Filter out watchers that are linked to alerts
+  const filteredWatchers = watchers.filter((w) => !excludeWatcherIds.includes(w.id))
+
   if (loading) {
     return (
-      <div className="text-gray-500 text-sm py-4">Loading your alerts...</div>
+      <div className="text-gray-500 text-sm py-4">Loading...</div>
     )
   }
 
-  if (watchers.length === 0) {
-    return (
-      <div className="text-gray-500 text-sm py-4">
-        No alerts set up yet. Click "Set Alert" to get notified when rooms become available.
-      </div>
-    )
+  // Don't show anything if no standalone watchers
+  if (filteredWatchers.length === 0) {
+    return null
   }
 
   return (
     <div className="space-y-3">
-      <h3 className="text-lg font-semibold text-gray-900">Your Alerts</h3>
-      {watchers.map((watcher) => (
+      <h3 className="text-md font-semibold text-gray-700">Standalone Email/Discord Watchers</h3>
+      {filteredWatchers.map((watcher) => (
         <div
           key={watcher.id}
           className="bg-white border border-gray-200 rounded-lg p-4 flex items-start justify-between"
@@ -146,9 +147,6 @@ export function WatcherList({ onRefresh }: WatcherListProps) {
               {watcher.room_type_pattern && (
                 <span className="ml-3">Type: {watcher.room_type_pattern}</span>
               )}
-            </div>
-            <div className="text-xs text-gray-500">
-              Cooldown: {watcher.cooldown_minutes} min
             </div>
           </div>
           <button

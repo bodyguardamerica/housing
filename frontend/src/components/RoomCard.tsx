@@ -6,13 +6,15 @@ import {
   formatPrice,
   formatDate,
   getRelativeTime,
+  buildHotelBookingUrl,
 } from '@/lib/utils'
 
 interface RoomCardProps {
   room: RoomAvailability
+  bookingUrl?: string
 }
 
-export function RoomCard({ room }: RoomCardProps) {
+export function RoomCard({ room, bookingUrl }: RoomCardProps) {
   return (
     <div className="bg-white shadow rounded-lg p-4">
       <div className="flex items-start justify-between">
@@ -87,14 +89,26 @@ export function RoomCard({ room }: RoomCardProps) {
         <span className="text-xs text-gray-500">
           Updated {getRelativeTime(room.seconds_ago)}
         </span>
-        <a
-          href="https://book.passkey.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gencon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gencon-blue"
-        >
-          Book Now
-        </a>
+        {(() => {
+          const hotelUrl = buildHotelBookingUrl(bookingUrl, room.hotel_name)
+          return hotelUrl ? (
+            <a
+              href={hotelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gencon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gencon-blue"
+            >
+              Book Now
+            </a>
+          ) : (
+            <span
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed"
+              title="Add your Passkey URL above to enable booking"
+            >
+              Book Now
+            </span>
+          )
+        })()}
       </div>
     </div>
   )
@@ -102,9 +116,10 @@ export function RoomCard({ room }: RoomCardProps) {
 
 interface RoomCardListProps {
   rooms: RoomAvailability[]
+  bookingUrl?: string
 }
 
-export function RoomCardList({ rooms }: RoomCardListProps) {
+export function RoomCardList({ rooms, bookingUrl }: RoomCardListProps) {
   if (rooms.length === 0) {
     return (
       <div className="bg-white shadow rounded-lg p-8 text-center text-gray-500">
@@ -119,7 +134,7 @@ export function RoomCardList({ rooms }: RoomCardListProps) {
   return (
     <div className="space-y-4">
       {rooms.map((room) => (
-        <RoomCard key={room.snapshot_id} room={room} />
+        <RoomCard key={room.snapshot_id} room={room} bookingUrl={bookingUrl} />
       ))}
     </div>
   )

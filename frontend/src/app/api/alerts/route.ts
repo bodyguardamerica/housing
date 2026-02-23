@@ -84,6 +84,8 @@ export async function POST(request: NextRequest) {
       min_nights_available: body.min_nights_available || null,
       enabled: body.enabled ?? true,
       sound_enabled: body.sound_enabled ?? true,
+      full_screen_enabled: body.full_screen_enabled ?? true,
+      discord_watcher_id: body.discord_watcher_id || null,
     })
     .select()
     .single()
@@ -129,6 +131,8 @@ export async function PUT(request: NextRequest) {
       min_nights_available: body.min_nights_available,
       enabled: body.enabled,
       sound_enabled: body.sound_enabled,
+      full_screen_enabled: body.full_screen_enabled,
+      discord_watcher_id: body.discord_watcher_id,
     })
     .eq('id', body.id)
     .eq('user_id', user.id)

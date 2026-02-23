@@ -1,14 +1,16 @@
 'use client'
 
 import type { AlertMatch } from '@/lib/types'
+import { buildHotelBookingUrl } from '@/lib/utils'
 
 interface MatchedRoomsProps {
   matches: AlertMatch[]
   onDismiss: (alertId: string, snapshotId: string) => void
   onClearAll: () => void
+  bookingUrl?: string
 }
 
-export function MatchedRooms({ matches, onDismiss, onClearAll }: MatchedRoomsProps) {
+export function MatchedRooms({ matches, onDismiss, onClearAll, bookingUrl }: MatchedRoomsProps) {
   if (matches.length === 0) return null
 
   // Group matches by alert
@@ -84,7 +86,7 @@ export function MatchedRooms({ matches, onDismiss, onClearAll }: MatchedRoomsPro
                       <span>{match.room.room_type}</span>
                       <span className="mx-2">|</span>
                       <span className="font-semibold text-green-700">
-                        ${match.room.total_price?.toFixed(0)}
+                        ${match.room.nightly_rate?.toFixed(0) ?? 'N/A'}/night
                       </span>
                       <span className="mx-2">|</span>
                       <span>{match.room.distance_from_icc} blocks</span>
@@ -93,14 +95,26 @@ export function MatchedRooms({ matches, onDismiss, onClearAll }: MatchedRoomsPro
                     </div>
                   </div>
                   <div className="flex items-center space-x-2 ml-4">
-                    <a
-                      href={`https://book.passkey.com/event/50910675/owner/10909638/home`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700"
-                    >
-                      Book Now
-                    </a>
+                    {(() => {
+                      const hotelUrl = buildHotelBookingUrl(bookingUrl, match.room.hotel_name)
+                      return hotelUrl ? (
+                        <a
+                          href={hotelUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700"
+                        >
+                          Book Now
+                        </a>
+                      ) : (
+                        <span
+                          className="px-3 py-1.5 bg-gray-200 text-gray-400 text-sm font-medium rounded cursor-not-allowed"
+                          title="Add your Passkey URL to enable booking"
+                        >
+                          Book Now
+                        </span>
+                      )
+                    })()}
                     <button
                       onClick={() => onDismiss(match.alertId, match.room.snapshot_id)}
                       className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"

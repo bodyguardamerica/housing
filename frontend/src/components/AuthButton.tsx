@@ -1,16 +1,15 @@
 'use client'
 
-import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 
 interface AuthButtonProps {
-  onSyncAlerts?: () => void
   className?: string
+  variant?: 'default' | 'header'
 }
 
-export function AuthButton({ onSyncAlerts, className = '' }: AuthButtonProps) {
+export function AuthButton({ className = '', variant = 'default' }: AuthButtonProps) {
   const { user, loading, isAuthenticated, signInWithGoogle, signOut } = useAuth()
-  const [syncing, setSyncing] = useState(false)
+  const isHeader = variant === 'header'
 
   const handleSignIn = async () => {
     try {
@@ -28,21 +27,10 @@ export function AuthButton({ onSyncAlerts, className = '' }: AuthButtonProps) {
     }
   }
 
-  const handleSync = async () => {
-    if (onSyncAlerts) {
-      setSyncing(true)
-      try {
-        await onSyncAlerts()
-      } finally {
-        setSyncing(false)
-      }
-    }
-  }
-
   if (loading) {
     return (
-      <div className={`flex items-center space-x-2 text-gray-500 ${className}`}>
-        <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"></div>
+      <div className={`flex items-center space-x-2 ${isHeader ? 'text-white' : 'text-gray-500'} ${className}`}>
+        <div className={`animate-spin w-4 h-4 border-2 rounded-full ${isHeader ? 'border-white/30 border-t-white' : 'border-gray-300 border-t-gray-600'}`}></div>
       </div>
     )
   }
@@ -58,35 +46,13 @@ export function AuthButton({ onSyncAlerts, className = '' }: AuthButtonProps) {
               className="w-6 h-6 rounded-full"
             />
           )}
-          <span className="text-gray-600 hidden sm:inline">
+          <span className={`hidden sm:inline ${isHeader ? 'text-white' : 'text-gray-600'}`}>
             {user.email?.split('@')[0]}
           </span>
         </div>
-        {onSyncAlerts && (
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-            title="Sync alerts to cloud"
-          >
-            <svg
-              className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-        )}
         <button
           onClick={handleSignOut}
-          className="text-xs text-gray-500 hover:text-gray-700 underline"
+          className={`text-xs underline ${isHeader ? 'text-white/80 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
         >
           Sign Out
         </button>
@@ -97,7 +63,11 @@ export function AuthButton({ onSyncAlerts, className = '' }: AuthButtonProps) {
   return (
     <button
       onClick={handleSignIn}
-      className={`flex items-center space-x-2 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 ${className}`}
+      className={`flex items-center space-x-2 px-3 py-1.5 text-sm rounded-md ${
+        isHeader
+          ? 'text-white bg-white/10 hover:bg-white/20 border border-white/30'
+          : 'text-gray-600 bg-white border border-gray-300 hover:bg-gray-50'
+      } ${className}`}
     >
       <svg className="w-4 h-4" viewBox="0 0 24 24">
         <path
@@ -117,7 +87,7 @@ export function AuthButton({ onSyncAlerts, className = '' }: AuthButtonProps) {
           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         />
       </svg>
-      <span>Sign in to sync</span>
+      <span>Sign in</span>
     </button>
   )
 }

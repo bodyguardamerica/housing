@@ -4,34 +4,37 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRooms } from '@/hooks/useRooms'
 import { useAlerts } from '@/hooks/useAlerts'
 import { useAuth } from '@/hooks/useAuth'
+import { usePasskeyUrl } from '@/hooks/usePasskeyUrl'
 import { StatusBar } from '@/components/StatusBar'
 import { FilterBar } from '@/components/FilterBar'
 import { RoomTable } from '@/components/RoomTable'
 import { RoomCardList } from '@/components/RoomCard'
 // import { HotelMap } from '@/components/HotelMap'  // Disabled for now
-import { WatcherModal } from '@/components/WatcherModal'
 import { WatcherList } from '@/components/WatcherList'
-import { AlertModal } from '@/components/AlertModal'
 import { AlertList } from '@/components/AlertList'
+import { UnifiedAlertModal } from '@/components/UnifiedAlertModal'
 import { MatchedRooms } from '@/components/MatchedRooms'
-import { supabase } from '@/lib/supabase'
-import type { RoomFilters, Hotel, LocalAlert } from '@/lib/types'
+import { MatchAlertModal } from '@/components/MatchAlertModal'
+import { PasskeySettings } from '@/components/PasskeySettings'
+import type { RoomFilters, LocalAlert } from '@/lib/types'
 
 export default function DashboardPage() {
   const [filters, setFilters] = useState<RoomFilters>({})
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
-  const [watcherModalOpen, setWatcherModalOpen] = useState(false)
   const [alertModalOpen, setAlertModalOpen] = useState(false)
   const [editingAlert, setEditingAlert] = useState<LocalAlert | null>(null)
-  const [hotels, setHotels] = useState<Hotel[]>([])
   const [watcherRefreshKey, setWatcherRefreshKey] = useState(0)
 
   const { rooms, meta, loading, error } = useRooms(filters)
   const {
     alerts,
     matches,
+    newMatches,
     soundMuted,
+    alarmSound,
+    volume,
     isLoaded: alertsLoaded,
+    notificationPermission,
     createAlert,
     updateAlert,
     deleteAlert,
@@ -41,77 +44,171 @@ export default function DashboardPage() {
     checkMatches,
     dismissMatch,
     clearAllMatches,
+    acknowledgeNewMatches,
+    requestNotifications,
     testSound,
+    setAlarmSound,
+    setVolume,
+    setAlerts,
   } = useAlerts()
   const { session, isAuthenticated } = useAuth()
+  const { passkeyUrl, setPasskeyUrl, isSyncing } = usePasskeyUrl()
 
-  // Check for matches whenever rooms change
+  // Check for matches whenever rooms or alerts change
   useEffect(() => {
     if (alertsLoaded && rooms.length > 0) {
       checkMatches(rooms)
     }
-  }, [rooms, alertsLoaded, checkMatches])
+  }, [rooms, alerts, alertsLoaded, checkMatches])
 
-  // Sync local alerts to cloud when authenticated
-  const syncAlerts = useCallback(async () => {
-    if (!isAuthenticated || !session?.access_token) {
-      console.log('Not authenticated, cannot sync')
-      return
-    }
+  // Fetch alerts from server when authenticated
+  useEffect(() => {
+    async function fetchServerAlerts() {
+      if (!isAuthenticated || !session?.access_token) return
 
-    try {
-      // Upload local alerts to the server
-      for (const alert of alerts) {
-        await fetch('/api/alerts', {
-          method: 'POST',
+      try {
+        const response = await fetch('/api/alerts', {
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            name: alert.name,
-            hotel_name: alert.hotelName,
-            max_price: alert.maxPrice,
-            max_distance: alert.maxDistance,
-            require_skywalk: alert.requireSkywalk,
-            min_nights_available: alert.minNightsAvailable,
-            enabled: alert.enabled,
-            sound_enabled: alert.soundEnabled,
-          }),
         })
-      }
-      alert('Alerts synced to cloud!')
-    } catch (error) {
-      console.error('Failed to sync alerts:', error)
-      alert('Failed to sync alerts')
-    }
-  }, [isAuthenticated, session, alerts])
 
-  // Fetch hotels for the watcher modal
-  useEffect(() => {
-    fetch('/api/hotels')
-      .then((res) => res.json())
-      .then((data) => setHotels(data.data || []))
-      .catch(console.error)
-  }, [])
+        if (!response.ok) {
+          console.error('Failed to fetch alerts from server')
+          return
+        }
+
+        const { data: serverAlerts } = await response.json()
+
+        if (serverAlerts && serverAlerts.length > 0) {
+          // Convert server alerts to LocalAlert format
+          const convertedAlerts: LocalAlert[] = serverAlerts.map((sa: {
+            id: string
+            name: string
+            hotel_name?: string
+            max_price?: number
+            max_distance?: number
+            require_skywalk?: boolean
+            enabled?: boolean
+            sound_enabled?: boolean
+            full_screen_enabled?: boolean
+            discord_watcher_id?: string
+            created_at: string
+          }) => ({
+            id: sa.id,
+            name: sa.name,
+            hotelName: sa.hotel_name,
+            maxPrice: sa.max_price,
+            maxDistance: sa.max_distance,
+            requireSkywalk: sa.require_skywalk || false,
+            createdAt: sa.created_at,
+            enabled: sa.enabled ?? true,
+            soundEnabled: sa.sound_enabled ?? true,
+            fullScreenEnabled: sa.full_screen_enabled ?? true,
+            discordWatcherId: sa.discord_watcher_id,
+          }))
+
+          setAlerts(convertedAlerts)
+          console.log('Loaded', convertedAlerts.length, 'alerts from server')
+        }
+      } catch (error) {
+        console.error('Error fetching alerts from server:', error)
+      }
+    }
+
+    fetchServerAlerts()
+  }, [isAuthenticated, session?.access_token, setAlerts])
+
+  // Save alert to server (when authenticated)
+  const saveAlertToServer = useCallback(async (alertData: Omit<LocalAlert, 'id' | 'createdAt'> & { id?: string }) => {
+    if (!isAuthenticated || !session?.access_token) return null
+
+    try {
+      const isUpdate = !!alertData.id
+      const response = await fetch('/api/alerts', {
+        method: isUpdate ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          id: alertData.id,
+          name: alertData.name,
+          hotel_name: alertData.hotelName,
+          max_price: alertData.maxPrice,
+          max_distance: alertData.maxDistance,
+          require_skywalk: alertData.requireSkywalk,
+          enabled: alertData.enabled,
+          sound_enabled: alertData.soundEnabled,
+          full_screen_enabled: alertData.fullScreenEnabled,
+          discord_watcher_id: alertData.discordWatcherId,
+        }),
+      })
+
+      if (!response.ok) {
+        console.error('Failed to save alert to server')
+        return null
+      }
+
+      const { data } = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error saving alert to server:', error)
+      return null
+    }
+  }, [isAuthenticated, session?.access_token])
+
+  // Delete alert from server (when authenticated)
+  const deleteAlertFromServer = useCallback(async (alertId: string) => {
+    if (!isAuthenticated || !session?.access_token) return
+
+    try {
+      await fetch(`/api/alerts?id=${alertId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+    } catch (error) {
+      console.error('Error deleting alert from server:', error)
+    }
+  }, [isAuthenticated, session?.access_token])
 
   const handleEditAlert = (alert: LocalAlert) => {
     setEditingAlert(alert)
     setAlertModalOpen(true)
   }
 
-  const handleSaveAlert = (alertData: Omit<LocalAlert, 'id' | 'createdAt'>) => {
+  const handleSaveAlert = async (alertData: Omit<LocalAlert, 'id' | 'createdAt'>) => {
     if (editingAlert) {
+      // Update existing alert
       updateAlert(editingAlert.id, alertData)
+      // Also update on server if authenticated
+      if (isAuthenticated) {
+        await saveAlertToServer({ ...alertData, id: editingAlert.id })
+      }
     } else {
-      createAlert(alertData)
+      // Create new alert locally first
+      const newAlert = createAlert(alertData)
+      // Also save to server if authenticated
+      if (isAuthenticated && newAlert) {
+        const serverAlert = await saveAlertToServer(alertData)
+        // Update the local alert with the server ID
+        if (serverAlert?.id) {
+          updateAlert(newAlert.id, { ...alertData, id: serverAlert.id } as Partial<LocalAlert>)
+        }
+      }
     }
     setEditingAlert(null)
   }
 
-  const handleCloseAlertModal = () => {
-    setAlertModalOpen(false)
-    setEditingAlert(null)
+  const handleDeleteAlert = async (alertId: string) => {
+    // Delete locally
+    deleteAlert(alertId)
+    // Also delete from server if authenticated
+    if (isAuthenticated) {
+      await deleteAlertFromServer(alertId)
+    }
   }
 
   return (
@@ -126,107 +223,129 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Your Local Alerts */}
-      {alertsLoaded && (
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      {/* Passkey URL Settings */}
+      <div className="mb-6">
+        <PasskeySettings passkeyUrl={passkeyUrl} onUrlChange={setPasskeyUrl} isSyncing={isSyncing} />
+      </div>
+
+      {/* All Alerts Section */}
+      <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Your Alerts</h2>
+          <div className="flex items-center space-x-2">
+            {/* Browser Notification Permission */}
+            {notificationPermission === 'default' && (
+              <button
+                onClick={requestNotifications}
+                className="flex items-center space-x-2 px-4 py-2 bg-amber-500 text-white font-semibold rounded-lg hover:bg-amber-600 shadow-md animate-pulse hover:animate-none"
+                title="Enable browser notifications to get alerts even when this tab is in the background"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <span>Enable Notifications</span>
+              </button>
+            )}
+            {notificationPermission === 'granted' && (
+              <span className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Notifications Enabled</span>
+              </span>
+            )}
+            {notificationPermission === 'denied' && (
+              <span className="flex items-center space-x-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded" title="Notifications blocked. Enable in browser settings.">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Notifications Blocked</span>
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setEditingAlert(null)
+                setAlertModalOpen(true)
+              }}
+              className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <span>Add Alert</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Local Browser Alerts */}
+        {alertsLoaded && (
           <AlertList
             alerts={alerts}
             matches={matches}
             onEdit={handleEditAlert}
-            onDelete={deleteAlert}
+            onDelete={handleDeleteAlert}
             onToggle={toggleAlert}
             onToggleSound={toggleAlertSound}
             soundMuted={soundMuted}
+            alarmSound={alarmSound}
+            volume={volume}
             onToggleMute={toggleMute}
             onTestSound={testSound}
-            onSyncAlerts={isAuthenticated ? syncAlerts : undefined}
+            onSetAlarmSound={setAlarmSound}
+            onSetVolume={setVolume}
           />
-        </div>
-      )}
+        )}
+
+        {/* Email/Discord Watchers (standalone ones not linked to alerts) */}
+        <WatcherList
+          key={watcherRefreshKey}
+          excludeWatcherIds={alerts.filter(a => a.discordWatcherId).map(a => a.discordWatcherId!)}
+        />
+      </div>
 
       {/* Matched Rooms Section */}
       <MatchedRooms
         matches={matches}
         onDismiss={dismissMatch}
         onClearAll={clearAllMatches}
+        bookingUrl={passkeyUrl}
       />
 
       {/* Filter Bar */}
       <FilterBar filters={filters} onFiltersChange={setFilters} />
 
-      {/* View Mode Toggle & Alert Buttons */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              viewMode === 'table'
-                ? 'bg-gencon-blue text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Table
-          </button>
-          <button
-            onClick={() => setViewMode('cards')}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              viewMode === 'cards'
-                ? 'bg-gencon-blue text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Cards
-          </button>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => {
-              setEditingAlert(null)
-              setAlertModalOpen(true)
-            }}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-              />
-            </svg>
-            <span>Local Alert</span>
-            {alerts.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-green-800 text-xs rounded-full">
-                {alerts.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setWatcherModalOpen(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-gencon-gold text-gray-900 font-medium rounded-md hover:bg-yellow-400"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            <span>Email/Discord</span>
-          </button>
-        </div>
+      {/* View Mode Toggle */}
+      <div className="flex items-center space-x-2 mb-6">
+        <button
+          onClick={() => setViewMode('table')}
+          className={`px-4 py-2 text-sm font-medium rounded-md ${
+            viewMode === 'table'
+              ? 'bg-gencon-blue text-white'
+              : 'bg-white text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          Table
+        </button>
+        <button
+          onClick={() => setViewMode('cards')}
+          className={`px-4 py-2 text-sm font-medium rounded-md ${
+            viewMode === 'cards'
+              ? 'bg-gencon-blue text-white'
+              : 'bg-white text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          Cards
+        </button>
       </div>
 
       {/* Content */}
@@ -247,42 +366,38 @@ export default function DashboardPage() {
         <>
           {viewMode === 'table' && (
             <div className="hidden md:block">
-              <RoomTable rooms={rooms} />
+              <RoomTable rooms={rooms} bookingUrl={passkeyUrl} />
             </div>
           )}
 
-          {viewMode === 'cards' && <RoomCardList rooms={rooms} />}
+          {viewMode === 'cards' && <RoomCardList rooms={rooms} bookingUrl={passkeyUrl} />}
 
           {/* Show cards on mobile when table is selected */}
           {viewMode === 'table' && (
             <div className="md:hidden">
-              <RoomCardList rooms={rooms} />
+              <RoomCardList rooms={rooms} bookingUrl={passkeyUrl} />
             </div>
           )}
         </>
       )}
 
-      {/* Email/Discord Watchers */}
-      <div className="mt-8 pt-8 border-t border-gray-200">
-        <WatcherList key={watcherRefreshKey} />
-      </div>
-
-      {/* Alert Modal (Local) */}
-      <AlertModal
+      {/* Unified Alert Modal */}
+      <UnifiedAlertModal
         isOpen={alertModalOpen}
-        onClose={handleCloseAlertModal}
-        onSave={handleSaveAlert}
+        onClose={() => {
+          setAlertModalOpen(false)
+          setEditingAlert(null)
+          setWatcherRefreshKey((k) => k + 1)
+        }}
+        onSaveLocal={handleSaveAlert}
         editingAlert={editingAlert}
       />
 
-      {/* Watcher Modal (Email/Discord) */}
-      <WatcherModal
-        isOpen={watcherModalOpen}
-        onClose={() => {
-          setWatcherModalOpen(false)
-          setWatcherRefreshKey((k) => k + 1)
-        }}
-        hotels={hotels}
+      {/* Full-screen Match Alert Modal */}
+      <MatchAlertModal
+        matches={newMatches}
+        onClose={acknowledgeNewMatches}
+        bookingUrl={passkeyUrl}
       />
     </div>
   )

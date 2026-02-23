@@ -98,3 +98,14 @@ export function getFreshnessColor(status: 'fresh' | 'stale' | 'error'): string {
       return 'bg-red-500'
   }
 }
+
+/**
+ * Returns the Passkey URL if provided, otherwise null.
+ * The second parameter is unused but kept for backwards compatibility.
+ */
+export function buildHotelBookingUrl(
+  basePasskeyUrl: string | undefined,
+  _unused?: string | number
+): string | null {
+  return basePasskeyUrl || null
+}

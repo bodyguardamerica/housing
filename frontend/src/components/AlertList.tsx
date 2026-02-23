@@ -1,7 +1,7 @@
 'use client'
 
 import type { LocalAlert, AlertMatch } from '@/lib/types'
-import { AuthButton } from './AuthButton'
+import { ALARM_SOUNDS, type AlarmSoundType } from '@/hooks/useAlerts'
 
 interface AlertListProps {
   alerts: LocalAlert[]
@@ -11,9 +11,12 @@ interface AlertListProps {
   onToggle: (id: string) => void
   onToggleSound: (id: string) => void
   soundMuted: boolean
+  alarmSound: AlarmSoundType
+  volume: number
   onToggleMute: () => void
-  onTestSound: () => void
-  onSyncAlerts?: () => Promise<void>
+  onTestSound: (sound?: AlarmSoundType) => void
+  onSetAlarmSound: (sound: AlarmSoundType) => void
+  onSetVolume: (volume: number) => void
 }
 
 export function AlertList({
@@ -24,9 +27,12 @@ export function AlertList({
   onToggle,
   onToggleSound,
   soundMuted,
+  alarmSound,
+  volume,
   onToggleMute,
   onTestSound,
-  onSyncAlerts,
+  onSetAlarmSound,
+  onSetVolume,
 }: AlertListProps) {
   // Count matches per alert
   const matchCountByAlert = matches.reduce((acc, match) => {
@@ -36,17 +42,40 @@ export function AlertList({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-lg font-semibold text-gray-900">Your Local Alerts</h3>
+        <h3 className="text-md font-semibold text-gray-700">Your Alerts</h3>
         <div className="flex items-center space-x-3">
-          <AuthButton onSyncAlerts={onSyncAlerts} />
           {alerts.length > 0 && (
           <div className="flex items-center space-x-2 border-l pl-3">
+            <select
+              value={alarmSound}
+              onChange={(e) => onSetAlarmSound(e.target.value as AlarmSoundType)}
+              className="text-xs border border-gray-300 rounded px-2 py-1 text-gray-700 bg-white"
+              title="Select alarm sound"
+            >
+              {Object.entries(ALARM_SOUNDS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+            <div className="flex items-center space-x-1" title={`Volume: ${Math.round(volume * 100)}%`}>
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={volume}
+                onChange={(e) => onSetVolume(parseFloat(e.target.value))}
+                className="w-16 h-1 accent-blue-500"
+              />
+            </div>
             <button
-              onClick={onTestSound}
+              onClick={() => onTestSound(alarmSound)}
               className="text-xs text-gray-500 hover:text-gray-700 underline"
               title="Test notification sound"
             >
-              Test Sound
+              Test
             </button>
             <button
               onClick={onToggleMute}
@@ -115,10 +144,15 @@ export function AlertList({
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 flex-wrap gap-1">
                   <h4 className={`font-medium ${alert.enabled ? 'text-gray-900' : 'text-gray-500'}`}>
                     {alert.name}
                   </h4>
+                  {alert.discordWatcherId && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                      Discord
+                    </span>
+                  )}
                   {!alert.enabled && (
                     <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
                       Disabled
@@ -140,7 +174,6 @@ export function AlertList({
                   {alert.maxPrice && <span>Max ${alert.maxPrice}</span>}
                   {alert.maxDistance && <span>Within {alert.maxDistance} blocks</span>}
                   {alert.requireSkywalk && <span>Skywalk only</span>}
-                  {alert.minNightsAvailable && <span>Min {alert.minNightsAvailable} nights</span>}
                 </div>
               </div>
 
@@ -259,8 +292,8 @@ export function AlertList({
 
       <p className="text-xs text-gray-500 mt-2">
         {alerts.length > 0
-          ? 'Local alerts are stored in your browser. Keep this tab open to receive notifications.'
-          : 'Sign in with Google to sync alerts across devices.'}
+          ? 'Keep this tab open for audio and visual notifications. Discord alerts work even when closed.'
+          : 'Create an alert above. Sign in with Google to auto-sync alerts across devices.'}
       </p>
     </div>
   )

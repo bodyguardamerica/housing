@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { RoomAvailability } from '@/lib/types'
-import { getDistanceLabel, formatPrice } from '@/lib/utils'
+import { getDistanceLabel, formatPrice, buildHotelBookingUrl } from '@/lib/utils'
 
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(
@@ -25,11 +25,13 @@ const Popup = dynamic(
 
 interface HotelMapProps {
   rooms: RoomAvailability[]
+  bookingUrl?: string
 }
 
 // Group rooms by hotel for the map
 interface HotelMarkerData {
   hotel_id: string
+  passkey_hotel_id: number
   hotel_name: string
   latitude: number
   longitude: number
@@ -41,7 +43,7 @@ interface HotelMarkerData {
   min_price: number | null
 }
 
-export function HotelMap({ rooms }: HotelMapProps) {
+export function HotelMap({ rooms, bookingUrl }: HotelMapProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -66,6 +68,7 @@ export function HotelMap({ rooms }: HotelMapProps) {
       } else {
         hotelMap.set(room.hotel_id, {
           hotel_id: room.hotel_id,
+          passkey_hotel_id: room.passkey_hotel_id,
           hotel_name: room.hotel_name,
           latitude: room.latitude,
           longitude: room.longitude,
@@ -108,7 +111,7 @@ export function HotelMap({ rooms }: HotelMapProps) {
           />
 
           {hotels.map((hotel) => (
-            <HotelMarker key={hotel.hotel_id} hotel={hotel} />
+            <HotelMarker key={hotel.hotel_id} hotel={hotel} bookingUrl={bookingUrl} />
           ))}
         </MapContainer>
       </div>
@@ -129,7 +132,7 @@ export function HotelMap({ rooms }: HotelMapProps) {
   )
 }
 
-function HotelMarker({ hotel }: { hotel: HotelMarkerData }) {
+function HotelMarker({ hotel, bookingUrl }: { hotel: HotelMarkerData; bookingUrl?: string }) {
   const [icon, setIcon] = useState<L.Icon | L.DivIcon | null>(null)
 
   useEffect(() => {
@@ -203,14 +206,23 @@ function HotelMarker({ hotel }: { hotel: HotelMarkerData }) {
               </p>
             )}
           </div>
-          <a
-            href="https://book.passkey.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-block px-3 py-1 bg-gencon-blue text-white text-sm rounded hover:bg-blue-700"
-          >
-            Book Now
-          </a>
+          {(() => {
+            const hotelUrl = buildHotelBookingUrl(bookingUrl, hotel.hotel_name)
+            return hotelUrl ? (
+              <a
+                href={hotelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-block px-3 py-1 bg-gencon-blue text-white text-sm rounded hover:bg-blue-700"
+              >
+                Book Now
+              </a>
+            ) : (
+              <span className="mt-3 inline-block px-3 py-1 bg-gray-300 text-gray-500 text-sm rounded cursor-not-allowed">
+                Book Now
+              </span>
+            )
+          })()}
         </div>
       </Popup>
     </Marker>

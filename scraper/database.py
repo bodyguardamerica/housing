@@ -23,6 +23,8 @@ class Database:
     """Database operations using Supabase REST API directly."""
 
     def __init__(self, url: str, service_role_key: str):
+        self.url = url  # Store full URL for edge function calls
+        self.service_role_key = service_role_key
         self.base_url = f"{url}/rest/v1"
         self.headers = {
             "apikey": service_role_key,
@@ -52,6 +54,41 @@ class Database:
         response = self.client.patch(url, json=data, params=params)
         response.raise_for_status()
         return response.json()
+
+    async def trigger_notifications(self, snapshot_id: str, snapshot_data: dict):
+        """
+        Call the match-watchers edge function to trigger notifications for a new snapshot.
+        Only called when available_count > 0.
+        """
+        try:
+            url = f"{self.url}/functions/v1/match-watchers"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.service_role_key}",
+            }
+            payload = {
+                "type": "INSERT",
+                "table": "room_snapshots",
+                "record": {
+                    "id": snapshot_id,
+                    "hotel_id": snapshot_data["hotel_id"],
+                    "room_type": snapshot_data["room_type"],
+                    "available_count": snapshot_data["available_count"],
+                    "nightly_rate": snapshot_data["nightly_rate"],
+                    "total_price": snapshot_data["total_price"],
+                    "check_in": snapshot_data["check_in"],
+                    "check_out": snapshot_data["check_out"],
+                    "year": snapshot_data["year"],
+                }
+            }
+            response = self.client.post(url, json=payload, headers=headers)
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"Notifications triggered for snapshot {snapshot_id}: {result.get('message', 'OK')}")
+            else:
+                logger.warning(f"Failed to trigger notifications: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"Error triggering notifications for snapshot {snapshot_id}: {e}")
 
     async def get_config(self, key: str) -> Optional[str]:
         """Get a configuration value."""
@@ -102,10 +139,10 @@ class Database:
         if existing:
             hotel_id = existing[0]["id"]
             # Update existing with real passkey_hotel_id if we have a positive one
+            # Note: Don't overwrite has_skywalk - it's manually set from Gen Con's hotel map
             update_data = {
                 "distance_from_icc": data.distance_from_icc,
                 "distance_unit": data.distance_unit,
-                "has_skywalk": data.has_skywalk,
                 "updated_at": datetime.utcnow().isoformat(),
             }
             # Update passkey_hotel_id if the current one is a placeholder (negative)
@@ -137,8 +174,8 @@ class Database:
             return result[0]["id"]
         return None
 
-    async def create_room_snapshot(self, data: RoomSnapshotCreate):
-        """Create a room snapshot record."""
+    async def create_room_snapshot(self, data: RoomSnapshotCreate) -> Optional[str]:
+        """Create a room snapshot record and trigger notifications if available."""
         insert_data = {
             "scrape_run_id": data.scrape_run_id,
             "hotel_id": data.hotel_id,
@@ -155,7 +192,30 @@ class Database:
         if data.raw_block_data:
             insert_data["raw_block_data"] = data.raw_block_data
 
-        self._post("room_snapshots", insert_data)
+        result = self._post("room_snapshots", insert_data)
+        snapshot_id = result[0]["id"] if result else None
+
+        # Trigger notifications if there's availability (full or partial)
+        has_availability = data.available_count > 0
+        has_partial = (
+            data.raw_block_data
+            and data.raw_block_data.get("partial_availability")
+            and data.raw_block_data.get("nights_available", 0) > 0
+        )
+
+        if snapshot_id and (has_availability or has_partial):
+            await self.trigger_notifications(snapshot_id, {
+                "hotel_id": data.hotel_id,
+                "room_type": data.room_type,
+                "available_count": data.available_count,
+                "nightly_rate": float(data.nightly_rate),
+                "total_price": float(data.total_price),
+                "check_in": data.check_in.isoformat(),
+                "check_out": data.check_out.isoformat(),
+                "year": data.year,
+            })
+
+        return snapshot_id
 
     async def get_last_scrape_hash(self, year: int) -> Optional[str]:
         """Get a hash of the last successful scrape's data for deduplication."""

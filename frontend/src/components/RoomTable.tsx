@@ -1,18 +1,14 @@
 'use client'
 
 import type { RoomAvailability } from '@/lib/types'
-import {
-  getDistanceLabel,
-  formatPrice,
-  formatDate,
-  getRelativeTime,
-} from '@/lib/utils'
+import { getDistanceLabel, formatPrice, buildHotelBookingUrl } from '@/lib/utils'
 
 interface RoomTableProps {
   rooms: RoomAvailability[]
+  bookingUrl?: string
 }
 
-export function RoomTable({ rooms }: RoomTableProps) {
+export function RoomTable({ rooms, bookingUrl }: RoomTableProps) {
   if (rooms.length === 0) {
     return (
       <div className="bg-white shadow rounded-lg p-8 text-center text-gray-500">
@@ -44,15 +40,6 @@ export function RoomTable({ rooms }: RoomTableProps) {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Per Night
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Dates
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Updated
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Action
@@ -115,25 +102,27 @@ export function RoomTable({ rooms }: RoomTableProps) {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatPrice(room.nightly_rate)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {formatPrice(room.total_price)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(room.check_in)} - {formatDate(room.check_out)}
-                  <div className="text-xs">({room.num_nights} nights)</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {getRelativeTime(room.seconds_ago)}
-                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <a
-                    href="https://book.passkey.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-gencon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gencon-blue"
-                  >
-                    Book Now
-                  </a>
+                  {(() => {
+                    const hotelUrl = buildHotelBookingUrl(bookingUrl, room.hotel_name)
+                    return hotelUrl ? (
+                      <a
+                        href={hotelUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-gencon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gencon-blue"
+                      >
+                        Book Now
+                      </a>
+                    ) : (
+                      <span
+                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed"
+                        title="Add your Passkey URL above to enable booking"
+                      >
+                        Book Now
+                      </span>
+                    )
+                  })()}
                 </td>
               </tr>
             ))}
