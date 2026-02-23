@@ -165,14 +165,20 @@ class PasskeyClient:
         if data:
             first_hotel = data[0]
             logger.info(f"First hotel keys: {list(first_hotel.keys())}")
+            logger.info(f"First hotel name: {first_hotel.get('name', 'unknown')}")
             if 'blocks' in first_hotel:
-                logger.info(f"First hotel has {len(first_hotel.get('blocks', []))} blocks")
+                blocks_data = first_hotel.get('blocks', [])
+                logger.info(f"First hotel has {len(blocks_data)} blocks")
+                if blocks_data:
+                    logger.info(f"First block keys: {list(blocks_data[0].keys())}")
+                    logger.info(f"First block data: {blocks_data[0]}")
             else:
                 # Check for alternative room data structures
+                logger.info("No 'blocks' key found, checking alternatives:")
                 for key in first_hotel.keys():
                     val = first_hotel[key]
                     if isinstance(val, list) and len(val) > 0:
-                        logger.info(f"  {key}: list with {len(val)} items, first item keys: {list(val[0].keys()) if isinstance(val[0], dict) else type(val[0])}")
+                        logger.info(f"  {key}: list with {len(val)} items, first item: {val[0] if isinstance(val[0], dict) else type(val[0])}")
 
         for hotel_data in data:
             blocks = []
@@ -306,10 +312,16 @@ class PasskeyClient:
                         continue
 
                     # Collect hotels with availability for this night
+                    hotels_with_blocks = 0
+                    total_blocks = 0
                     for hotel in hotels:
                         # Store hotel info (update if we have new data)
                         if hotel.id not in all_hotels or hotel.blocks:
                             all_hotels[hotel.id] = hotel
+
+                        if hotel.blocks:
+                            hotels_with_blocks += 1
+                            total_blocks += len(hotel.blocks)
 
                         # Record availability for each room block
                         for block in hotel.blocks:
@@ -325,6 +337,8 @@ class PasskeyClient:
                                 available_count=available,
                                 nightly_rate=rate,
                             ))
+
+                    logger.info(f"Night {night_check_in}: {len(hotels)} hotels, {hotels_with_blocks} with blocks, {total_blocks} total blocks")
 
                     # Success for this night
                     break
