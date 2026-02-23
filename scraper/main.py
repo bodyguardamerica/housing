@@ -1,5 +1,7 @@
 """FastAPI application for the GenCon Hotels scraper."""
 
+__version__ = "1.1.0"  # Force redeploy - multi-night scraping
+
 import asyncio
 import logging
 import signal
@@ -129,6 +131,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize database
     if config:
+        logger.info(f"Starting GenCon Hotels Scraper v{__version__}")
         db = Database(config.supabase_url, config.supabase_service_role_key)
         logger.info("Database initialized")
 
