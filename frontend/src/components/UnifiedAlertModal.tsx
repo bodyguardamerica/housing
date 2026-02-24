@@ -45,8 +45,9 @@ export function UnifiedAlertModal({
       setSoundEnabled(editingAlert?.soundEnabled ?? true)
       setFullScreenEnabled(editingAlert?.fullScreenEnabled ?? true)
       setVisualEnabled(true)
-      setDiscordEnabled(false)
-      setDiscordWebhook('')
+      // Preserve Discord settings if alert already has a linked watcher
+      setDiscordEnabled(!!editingAlert?.discordWatcherId)
+      setDiscordWebhook('') // Webhook is stored server-side, don't expose
       setError(null)
     }
   }, [isOpen, editingAlert])
@@ -74,7 +75,8 @@ export function UnifiedAlertModal({
       return
     }
 
-    if (discordEnabled && !discordWebhook) {
+    // Only require webhook if Discord enabled AND no existing watcher
+    if (discordEnabled && !discordWebhook && !editingAlert?.discordWatcherId) {
       setError('Please enter a Discord webhook URL')
       return
     }
@@ -82,9 +84,29 @@ export function UnifiedAlertModal({
     setLoading(true)
 
     try {
-      let discordWatcherId: string | undefined
+      // Preserve existing discordWatcherId if editing and Discord still enabled
+      let discordWatcherId: string | undefined =
+        (discordEnabled && editingAlert?.discordWatcherId) ? editingAlert.discordWatcherId : undefined
 
-      // Create Discord watcher if enabled
+      // If user disabled Discord on an existing alert, delete the watcher
+      if (!discordEnabled && editingAlert?.discordWatcherId) {
+        try {
+          const tokens = JSON.parse(localStorage.getItem('watcher_tokens') || '{}')
+          const token = tokens[editingAlert.discordWatcherId]
+          if (token) {
+            await fetch(`/api/watchers?id=${editingAlert.discordWatcherId}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            delete tokens[editingAlert.discordWatcherId]
+            localStorage.setItem('watcher_tokens', JSON.stringify(tokens))
+          }
+        } catch (err) {
+          console.error('Failed to delete Discord watcher:', err)
+        }
+      }
+
+      // Create NEW Discord watcher only if enabled AND new webhook provided
       if (discordEnabled && discordWebhook) {
         const response = await fetch('/api/watchers', {
           method: 'POST',
@@ -243,13 +265,21 @@ export function UnifiedAlertModal({
                     </div>
                   </label>
                   {discordEnabled && (
-                    <input
-                      type="url"
-                      value={discordWebhook}
-                      onChange={(e) => setDiscordWebhook(e.target.value)}
-                      className="mt-2 ml-7 w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
-                      placeholder="https://discord.com/api/webhooks/..."
-                    />
+                    <div className="mt-2 ml-7">
+                      {editingAlert?.discordWatcherId && !discordWebhook ? (
+                        <p className="text-sm text-green-600">
+                          ✓ Discord webhook configured
+                        </p>
+                      ) : (
+                        <input
+                          type="url"
+                          value={discordWebhook}
+                          onChange={(e) => setDiscordWebhook(e.target.value)}
+                          className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
+                          placeholder="https://discord.com/api/webhooks/..."
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

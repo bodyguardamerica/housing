@@ -66,6 +66,70 @@ export async function GET(request: NextRequest) {
       throw roomsError
     }
 
+    let roomsData = (rooms || []) as RoomAvailability[]
+
+    // When showing sold out, also include hotels with NO room data at all
+    if (showSoldOut) {
+      // Get all hotels that match filters but have no room data
+      let hotelsQuery = supabase.from('hotels').select('*')
+
+      if (maxDistance) {
+        hotelsQuery = hotelsQuery.lte('distance_from_icc', parseFloat(maxDistance))
+      }
+      if (skywalkOnly) {
+        hotelsQuery = hotelsQuery.eq('skywalk_manual', true)
+      }
+      if (hotelName) {
+        hotelsQuery = hotelsQuery.ilike('name', `%${hotelName}%`)
+      }
+
+      const { data: allHotels } = await hotelsQuery
+
+      if (allHotels) {
+        // Find hotels not already in room results
+        const hotelsInResults = new Set(roomsData.map(r => r.hotel_id))
+        const missingHotels = allHotels.filter(h => !hotelsInResults.has(h.id))
+
+        // Create placeholder entries for hotels with no room data
+        const placeholderRooms: RoomAvailability[] = missingHotels.map(hotel => ({
+          snapshot_id: `placeholder-${hotel.id}`,
+          hotel_id: hotel.id,
+          passkey_hotel_id: hotel.passkey_hotel_id,
+          hotel_name: hotel.name,
+          address: hotel.address,
+          distance_from_icc: hotel.distance_from_icc,
+          distance_unit: hotel.distance_unit,
+          has_skywalk: hotel.skywalk_manual || false,
+          latitude: hotel.latitude,
+          longitude: hotel.longitude,
+          room_type: 'No rooms available',
+          room_description: null,
+          available_count: 0,
+          nightly_rate: null,
+          total_price: null,
+          check_in: '',
+          check_out: '',
+          num_nights: 0,
+          scraped_at: '',
+          seconds_ago: 0,
+        }))
+
+        roomsData = [...roomsData, ...placeholderRooms]
+
+        // Re-sort combined results
+        const sortKey = sortColumn as keyof RoomAvailability
+        roomsData.sort((a, b) => {
+          const aVal = a[sortKey]
+          const bVal = b[sortKey]
+          if (aVal === null || aVal === undefined) return sortDir === 'asc' ? 1 : -1
+          if (bVal === null || bVal === undefined) return sortDir === 'asc' ? -1 : 1
+          if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+          if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
+          return 0
+        })
+      }
+    }
+
     // Get last scrape info
     const { data: lastScrape } = await supabase
       .from('scrape_runs')
@@ -83,7 +147,6 @@ export async function GET(request: NextRequest) {
       .single() as { data: { value: unknown } | null }
 
     // Calculate metadata
-    const roomsData = (rooms || []) as RoomAvailability[]
     const uniqueHotels = new Set(roomsData.map((r) => r.hotel_id))
     const totalRooms = roomsData.reduce((sum, r) => sum + r.available_count, 0)
 

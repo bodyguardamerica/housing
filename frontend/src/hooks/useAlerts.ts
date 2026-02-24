@@ -254,6 +254,13 @@ function saveToStorage(state: AlertsState): void {
 function roomMatchesAlert(room: RoomAvailability, alert: LocalAlert): boolean {
   if (!alert.enabled) return false
 
+  // Only match rooms with FULL availability (not partial, not sold out)
+  // Must have at least 1 room available
+  if (room.available_count <= 0) return false
+
+  // Exclude partial availability rooms (only some nights available)
+  if (room.partial_availability === true) return false
+
   // Hotel name partial match (case insensitive)
   if (alert.hotelName) {
     const searchName = alert.hotelName.toLowerCase()
