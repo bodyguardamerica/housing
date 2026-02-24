@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import type { RoomsResponse, RoomAvailability } from '@/lib/types'
+import type { RoomsResponse, RoomAvailability, Hotel } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
   const supabase = createServerClient()
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         hotelsQuery = hotelsQuery.ilike('name', `%${hotelName}%`)
       }
 
-      const { data: allHotels } = await hotelsQuery
+      const { data: allHotels } = await hotelsQuery as { data: Hotel[] | null }
 
       if (allHotels) {
         // Find hotels not already in room results

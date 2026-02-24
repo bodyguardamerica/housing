@@ -48,6 +48,7 @@ export interface Hotel {
   distance_from_icc: number | null
   distance_unit: number
   has_skywalk: boolean
+  skywalk_manual: boolean
   year: number
   amenities: Record<string, unknown>
   created_at: string
