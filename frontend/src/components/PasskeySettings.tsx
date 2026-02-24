@@ -36,18 +36,31 @@ export function PasskeySettings({ passkeyUrl, onUrlChange, isSyncing }: PasskeyS
             </svg>
           )}
           <span className="text-sm text-green-800">
-            Passkey URL configured{isAuthenticated ? ' (synced to account)' : ''} - Book Now buttons are ready
+            Passkey URL configured{isAuthenticated ? ' (synced to account)' : ''}
           </span>
         </div>
-        <button
-          onClick={() => {
-            setTempUrl(passkeyUrl)
-            setIsEditing(true)
-          }}
-          className="text-sm text-green-700 hover:text-green-900 underline"
-        >
-          Change
-        </button>
+        <div className="flex items-center space-x-3">
+          <a
+            href={passkeyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Open Housing Portal
+          </a>
+          <button
+            onClick={() => {
+              setTempUrl(passkeyUrl)
+              setIsEditing(true)
+            }}
+            className="text-sm text-green-700 hover:text-green-900 underline"
+          >
+            Change
+          </button>
+        </div>
       </div>
     )
   }
@@ -72,7 +85,7 @@ export function PasskeySettings({ passkeyUrl, onUrlChange, isSyncing }: PasskeyS
               value={tempUrl}
               onChange={(e) => setTempUrl(e.target.value)}
               placeholder="https://book.passkey.com/reg/..."
-              className="flex-1 px-3 py-2 text-sm border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white placeholder-gray-400"
             />
             <button
               onClick={handleSave}

@@ -15,7 +15,12 @@ interface NotificationPayload {
   check_out: string
   has_skywalk: boolean
   distance_label: string
+  passkey_hotel_id?: number
 }
+
+// GenCon Passkey booking URL
+const PASSKEY_BOOK_URL = 'https://book.passkey.com/event/50910675/owner/10909638/home'
+const SITE_URL = 'https://lotterylosers.com'
 
 serve(async (req) => {
   try {
@@ -37,10 +42,11 @@ serve(async (req) => {
     const embed = {
       title: '🏨 Room Available!',
       color: 0x10b981, // Green
+      description: `**[📲 BOOK NOW](${PASSKEY_BOOK_URL})** | [View on Lottery Losers](${SITE_URL})`,
       fields: [
         {
           name: 'Hotel',
-          value: `**${payload.hotel_name}**${payload.has_skywalk ? ' (Skywalk)' : ''}`,
+          value: `**${payload.hotel_name}**${payload.has_skywalk ? ' 🌉 Skywalk' : ''}`,
           inline: false,
         },
         {
@@ -60,7 +66,7 @@ serve(async (req) => {
         },
         {
           name: 'Price',
-          value: `$${payload.nightly_rate}/night ($${payload.total_price} total)`,
+          value: `$${payload.nightly_rate?.toLocaleString() || 'N/A'}/night ($${payload.total_price?.toLocaleString() || 'N/A'} total)`,
           inline: true,
         },
         {
@@ -70,7 +76,7 @@ serve(async (req) => {
         },
       ],
       footer: {
-        text: 'GenCon Hotels | Book quickly - rooms go fast!',
+        text: 'Lottery Losers | Book quickly - rooms go fast!',
       },
       timestamp: new Date().toISOString(),
     }
