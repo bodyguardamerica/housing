@@ -20,7 +20,7 @@ function createAuthClient(authHeader: string | null) {
 
 async function verifyAdmin(supabase: ReturnType<typeof createClient>) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) return null
+  if (authError || !user || !user.email) return null
 
   const { data: adminUser } = await supabase
     .from('admin_users')
