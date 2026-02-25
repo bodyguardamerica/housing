@@ -16,7 +16,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import config
 from database import Database, process_scrape_result, compute_result_hash, process_multi_night_result, compute_multi_night_hash
-from models import ScrapeRunCreate, ScrapeRunUpdate
+from models import ScrapeRunCreate, ScrapeRunUpdate, ScrapeTiming
 from passkey import PasskeyClient
 
 # Configure logging
@@ -64,9 +64,12 @@ async def run_scrape():
 
     start = datetime.utcnow()
 
+    # Create timing tracker for performance analysis
+    timing = ScrapeTiming()
+
     try:
         # Perform multi-night scrape to catch partial availability
-        result = await passkey_client.scrape_individual_nights(check_in, check_out)
+        result, timing = await passkey_client.scrape_individual_nights(check_in, check_out, timing=timing)
 
         if result is None:
             raise Exception("Scrape returned no results")
@@ -78,9 +81,12 @@ async def run_scrape():
             if hotel_id:
                 hotel_ids[hotel.id] = hotel_id
 
-        # Compute current result hash
+        # Compute current result hash (with timing)
+        import time
+        hash_start = time.perf_counter()
         current_hash = compute_multi_night_hash(result, hotel_ids)
         previous_hash = await db.get_last_scrape_hash(year)
+        timing.hash_computation_ms = int((time.perf_counter() - hash_start) * 1000)
 
         if current_hash == previous_hash:
             # No changes, mark as no_changes
@@ -94,11 +100,12 @@ async def run_scrape():
                 no_changes=True,
             ))
             logger.info("Scrape completed - no changes detected")
+            logger.info(timing.log_summary())
             return
 
-        # Process and store results
+        # Process and store results (with timing)
         hotels_found, rooms_found = await process_multi_night_result(
-            db, result, scrape_run_id, year
+            db, result, scrape_run_id, year, timing=timing
         )
 
         duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
@@ -112,6 +119,7 @@ async def run_scrape():
         ))
 
         logger.info(f"Scrape completed: {hotels_found} hotels, {rooms_found} room types with availability")
+        logger.info(timing.log_summary())
 
     except Exception as e:
         logger.error(f"Scrape failed: {e}")
@@ -122,6 +130,9 @@ async def run_scrape():
             error_message=str(e),
             duration_ms=duration_ms,
         ))
+        # Log timing even on error to help debug performance issues
+        if timing.total_http_ms > 0 or timing.session_init_ms > 0:
+            logger.info(f"Partial timing before error: {timing.log_summary()}")
 
 
 @asynccontextmanager

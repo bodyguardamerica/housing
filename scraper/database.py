@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -14,6 +15,7 @@ from models import (
     ScrapeRunUpdate,
     RoomSnapshotCreate,
     HotelUpsert,
+    ScrapeTiming,
 )
 
 logger = logging.getLogger(__name__)
@@ -393,12 +395,15 @@ async def process_multi_night_result(
     result: MultiNightScrapeResult,
     scrape_run_id: str,
     year: int,
+    timing: Optional[ScrapeTiming] = None,
 ) -> tuple[int, int]:
     """
     Process a multi-night scrape result and store it in the database.
 
     Creates room snapshots comparing against the FULL requested date range.
     Also marks previously-available rooms as sold out if they're no longer in results.
+
+    If timing is provided, populates it with detailed timing metrics.
     """
     from datetime import timedelta
 
@@ -409,10 +414,14 @@ async def process_multi_night_result(
     # Calculate the total nights in the requested range
     total_nights_in_range = (result.check_out - result.check_in).days
 
-    # Get previously available room keys to detect sold-out rooms
+    # Get previously available room keys to detect sold-out rooms (with timing)
+    prev_keys_start = time.perf_counter()
     previous_room_keys = await db.get_latest_room_keys(year)
+    if timing:
+        timing.get_previous_keys_ms = int((time.perf_counter() - prev_keys_start) * 1000)
 
-    # First, upsert all hotels to ensure we have their IDs
+    # First, upsert all hotels to ensure we have their IDs (with timing)
+    upsert_hotels_start = time.perf_counter()
     hotel_id_map: dict[int, str] = {}  # passkey_id -> db UUID
     for hotel in result.hotels:
         hotel_id = await db.upsert_hotel(HotelUpsert(
@@ -425,6 +434,8 @@ async def process_multi_night_result(
         ))
         hotel_id_map[hotel.id] = hotel_id
         hotels_processed.add(hotel.id)
+    if timing:
+        timing.upsert_hotels_ms = int((time.perf_counter() - upsert_hotels_start) * 1000)
 
     # Group nights by hotel+room to create aggregate snapshots
     availability_map: dict[tuple, list] = {}  # (hotel_id, room_type) -> list of night data
@@ -442,7 +453,10 @@ async def process_multi_night_result(
             "rate": night.nightly_rate,
         })
 
-    # Create room snapshots for each hotel+room combination
+    # Create room snapshots for each hotel+room combination (with timing)
+    create_snapshots_start = time.perf_counter()
+    notification_time_ms = 0  # Track notification time separately
+
     for (passkey_hotel_id, room_type), data in availability_map.items():
         db_hotel_id = hotel_id_map.get(passkey_hotel_id)
         if not db_hotel_id:
@@ -520,6 +534,19 @@ async def process_multi_night_result(
 
     if sold_out_count > 0:
         logger.info(f"Marked {sold_out_count} room types as sold out")
+
+    # Record snapshot creation timing (includes notifications since they're called in create_room_snapshot)
+    if timing:
+        total_snapshot_time = int((time.perf_counter() - create_snapshots_start) * 1000)
+        timing.create_snapshots_ms = total_snapshot_time
+        # Note: notification time is included in create_snapshots_ms since trigger_notifications
+        # is called within create_room_snapshot. For more detailed breakdown, see logs.
+
+        logger.info(
+            f"DB timing: prev_keys={timing.get_previous_keys_ms}ms, "
+            f"upsert_hotels={timing.upsert_hotels_ms}ms, "
+            f"create_snapshots={timing.create_snapshots_ms}ms"
+        )
 
     return len(hotels_processed), rooms_found
 
