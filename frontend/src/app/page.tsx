@@ -97,6 +97,7 @@ export default function DashboardPage() {
             sms_enabled?: boolean
             call_enabled?: boolean
             phone_number?: string
+            sms_message?: string
             created_at: string
           }) => ({
             id: sa.id,
@@ -115,6 +116,7 @@ export default function DashboardPage() {
             smsEnabled: sa.sms_enabled || false,
             callEnabled: sa.call_enabled || false,
             phoneNumber: sa.phone_number,
+            smsMessage: sa.sms_message,
           }))
 
           setAlerts(convertedAlerts)
@@ -158,6 +160,7 @@ export default function DashboardPage() {
           sms_enabled: alertData.smsEnabled,
           call_enabled: alertData.callEnabled,
           phone_number: alertData.phoneNumber,
+          sms_message: alertData.smsMessage,
         }),
       })
 

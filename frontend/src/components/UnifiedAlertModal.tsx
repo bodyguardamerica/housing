@@ -49,6 +49,7 @@ export function UnifiedAlertModal({
   const [smsEnabled, setSmsEnabled] = useState(false)
   const [callEnabled, setCallEnabled] = useState(false)
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [smsMessage, setSmsMessage] = useState('')
   const [smsTestStatus, setSmsTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
   const [callTestStatus, setCallTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
 
@@ -87,6 +88,7 @@ export function UnifiedAlertModal({
       setSmsEnabled(editingAlert?.smsEnabled || false)
       setCallEnabled(editingAlert?.callEnabled || false)
       setPhoneNumber(editingAlert?.phoneNumber || '')
+      setSmsMessage(editingAlert?.smsMessage || '')
       setSmsTestStatus('idle')
       setCallTestStatus('idle')
       setError(null)
@@ -247,6 +249,7 @@ export function UnifiedAlertModal({
         smsEnabled,
         callEnabled,
         phoneNumber: phoneNumber.trim() || undefined,
+        smsMessage: smsMessage.trim() || undefined,
       })
 
       // Reset and close
@@ -277,6 +280,7 @@ export function UnifiedAlertModal({
     setSmsEnabled(false)
     setCallEnabled(false)
     setPhoneNumber('')
+    setSmsMessage('')
     setSmsTestStatus('idle')
     setCallTestStatus('idle')
   }
@@ -560,6 +564,26 @@ export function UnifiedAlertModal({
                       </p>
                     </div>
 
+                    {/* SMS Message - only shown if SMS enabled */}
+                    {smsEnabled && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          SMS Message (optional)
+                        </label>
+                        <textarea
+                          value={smsMessage}
+                          onChange={(e) => setSmsMessage(e.target.value)}
+                          className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
+                          placeholder="Custom message (leave empty for auto-generated)"
+                          rows={3}
+                          maxLength={160}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          {smsMessage.length}/160 characters. Leave empty to use auto-generated message with hotel details.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Test buttons */}
                     <div className="flex space-x-2">
                       {smsEnabled && (
@@ -571,7 +595,7 @@ export function UnifiedAlertModal({
                               return
                             }
                             setSmsTestStatus('sending')
-                            const result = await sendTestSms(phoneNumber)
+                            const result = await sendTestSms(phoneNumber, smsMessage || undefined)
                             if (result.success) {
                               setSmsTestStatus('success')
                               setTimeout(() => setSmsTestStatus('idle'), 3000)

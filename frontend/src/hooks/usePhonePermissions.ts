@@ -73,7 +73,7 @@ export function usePhonePermissions() {
   }, [fetchPermissions])
 
   // Send test SMS
-  const sendTestSms = async (phoneNumber: string) => {
+  const sendTestSms = async (phoneNumber: string, customMessage?: string) => {
     if (!session?.access_token) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -87,7 +87,7 @@ export function usePhonePermissions() {
         },
         body: JSON.stringify({
           phone_number: phoneNumber,
-          message: 'Test SMS from Lottery Losers - Your alerts are working!',
+          message: customMessage || 'Test SMS from Lottery Losers - Your alerts are working!',
         }),
       })
 

@@ -228,6 +228,7 @@ export interface LocalAlert {
   smsEnabled?: boolean
   callEnabled?: boolean
   phoneNumber?: string
+  smsMessage?: string // Custom SMS message template
 }
 
 // Phone permission types

@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       sms_enabled: body.sms_enabled || false,
       call_enabled: body.call_enabled || false,
       phone_number: body.phone_number || null,
+      sms_message: body.sms_message || null,
     })
     .select()
     .single()
@@ -146,6 +147,7 @@ export async function PUT(request: NextRequest) {
       sms_enabled: body.sms_enabled,
       call_enabled: body.call_enabled,
       phone_number: body.phone_number,
+      sms_message: body.sms_message,
     })
     .eq('id', body.id)
     .eq('user_id', user.id)
