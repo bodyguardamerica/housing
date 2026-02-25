@@ -53,6 +53,7 @@ export function UnifiedAlertModal({
   // State
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
 
   // Reset form when modal opens or editingAlert changes
   useEffect(() => {
@@ -71,6 +72,7 @@ export function UnifiedAlertModal({
       setDiscordWebhook('') // Webhook is stored server-side, don't expose
       setDiscordMention('') // Mention is stored server-side
       setError(null)
+      setTestStatus('idle')
     }
   }, [isOpen, editingAlert])
 
@@ -194,6 +196,48 @@ export function UnifiedAlertModal({
     setDiscordEnabled(false)
     setDiscordWebhook('')
     setDiscordMention('')
+    setTestStatus('idle')
+  }
+
+  const sendDiscordTest = async () => {
+    if (!discordWebhook) {
+      setError('Please enter a webhook URL first')
+      return
+    }
+
+    setTestStatus('sending')
+    try {
+      const mentionPrefix = discordMention.trim() ? `${discordMention.trim()} ` : ''
+      const message = {
+        content: `${mentionPrefix}🔔 **Test Notification**`,
+        embeds: [{
+          title: 'Test Alert',
+          description: 'This is a test notification from Lottery Losers.',
+          color: 0x3b82f6, // blue
+          footer: {
+            text: 'Lottery Losers | GenCon Hotel Tracker',
+          },
+          timestamp: new Date().toISOString(),
+        }]
+      }
+
+      const response = await fetch(discordWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message),
+      })
+
+      if (response.ok) {
+        setTestStatus('success')
+        setTimeout(() => setTestStatus('idle'), 3000)
+      } else {
+        setTestStatus('error')
+        setError('Failed to send test - check your webhook URL')
+      }
+    } catch {
+      setTestStatus('error')
+      setError('Failed to send test - check your webhook URL')
+    }
   }
 
   return (
@@ -348,6 +392,24 @@ export function UnifiedAlertModal({
                           </div>
                         </details>
                       </div>
+                      {/* Test Button */}
+                      <button
+                        type="button"
+                        onClick={sendDiscordTest}
+                        disabled={!discordWebhook || testStatus === 'sending'}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          testStatus === 'success'
+                            ? 'bg-green-100 text-green-700'
+                            : testStatus === 'error'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50'
+                        }`}
+                      >
+                        {testStatus === 'sending' ? 'Sending...' :
+                         testStatus === 'success' ? '✓ Sent!' :
+                         testStatus === 'error' ? 'Failed' :
+                         'Send Test'}
+                      </button>
                     </div>
                   )}
                 </div>
