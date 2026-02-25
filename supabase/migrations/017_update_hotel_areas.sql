@@ -2,28 +2,28 @@
 -- Using exact name matching with ILIKE for case-insensitivity
 
 -- West Side / Airport hotels
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Baymont Inn & Suites Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Candlewood Suites Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Comfort Inn Indianapolis Airport - Plainfield';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Country Inn & Suites - Indianapolis Airport South';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Courtyard by Marriott Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Courtyard by Marriott Indianapolis Plainfield';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Courtyard by Marriott Indianapolis West Speedway';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Crowne Plaza Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Delta Hotels Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Embassy Suites by Hilton Airport-Plainfield';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Hampton Inn & Suites Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Hampton Inn & Suites Indianapolis West Speedway';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Hilton Garden Inn Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Holiday Inn Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Home2 Suites by Hilton Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Home2 Suites by Hilton Indianapolis Brownsburg';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Homewood Suites by Hilton Airport Plainfield';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Hyatt Place Indianapolis Airport';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'LaQuinta by Wyndham Indianapolis Airport - Executive Drive';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Residence Inn by Marriott Indianapolis Plainfield';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Wingate by Wyndham Airport Indianapolis Plainfield';
-UPDATE hotels SET area = 'airport' WHERE name ILIKE 'Wyndham Indianapolis West';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Baymont Inn & Suites Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Candlewood Suites Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Comfort Inn Indianapolis Airport - Plainfield';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Country Inn & Suites - Indianapolis Airport South';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Courtyard by Marriott Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Courtyard by Marriott Indianapolis Plainfield';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Courtyard by Marriott Indianapolis West Speedway';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Crowne Plaza Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Delta Hotels Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Embassy Suites by Hilton Airport-Plainfield';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Hampton Inn & Suites Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Hampton Inn & Suites Indianapolis West Speedway';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Hilton Garden Inn Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Holiday Inn Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Home2 Suites by Hilton Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Home2 Suites by Hilton Indianapolis Brownsburg';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Homewood Suites by Hilton Airport Plainfield';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Hyatt Place Indianapolis Airport';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'LaQuinta by Wyndham Indianapolis Airport - Executive Drive';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Residence Inn by Marriott Indianapolis Plainfield';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Wingate by Wyndham Airport Indianapolis Plainfield';
+UPDATE hotels SET area = 'west/airport' WHERE name ILIKE 'Wyndham Indianapolis West';
 
 -- East Side hotels
 UPDATE hotels SET area = 'east' WHERE name ILIKE 'Baymont by Wyndham Indianapolis - Brookville Crossing';
