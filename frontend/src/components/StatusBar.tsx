@@ -7,13 +7,28 @@ import {
   getFreshnessColor,
 } from '@/lib/utils'
 
-const REFRESH_INTERVAL = 60 // Scraper runs every 60 seconds
-
 interface StatusBarProps {
   lastScrapeAt: string | null
   totalRooms: number
   totalHotels: number
   scraperActive: boolean
+}
+
+function formatTimeAgo(secondsAgo: number): string {
+  if (secondsAgo < 60) {
+    return `${secondsAgo}s ago`
+  } else if (secondsAgo < 3600) {
+    const minutes = Math.floor(secondsAgo / 60)
+    return `${minutes}m ago`
+  } else {
+    const hours = Math.floor(secondsAgo / 3600)
+    const minutes = Math.floor((secondsAgo % 3600) / 60)
+    return minutes > 0 ? `${hours}h ${minutes}m ago` : `${hours}h ago`
+  }
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 export function StatusBar({
@@ -22,31 +37,28 @@ export function StatusBar({
   totalHotels,
   scraperActive,
 }: StatusBarProps) {
-  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(REFRESH_INTERVAL)
+  const [secondsAgo, setSecondsAgo] = useState(0)
 
   useEffect(() => {
-    const calculateTimeUntilRefresh = () => {
-      if (!lastScrapeAt) return REFRESH_INTERVAL
-      const secondsAgo = Math.floor((Date.now() - new Date(lastScrapeAt).getTime()) / 1000)
-      const remaining = REFRESH_INTERVAL - (secondsAgo % REFRESH_INTERVAL)
-      return remaining > 0 ? remaining : REFRESH_INTERVAL
+    const calculateSecondsAgo = () => {
+      if (!lastScrapeAt) return 999999
+      return Math.floor((Date.now() - new Date(lastScrapeAt).getTime()) / 1000)
     }
 
-    setSecondsUntilRefresh(calculateTimeUntilRefresh())
+    setSecondsAgo(calculateSecondsAgo())
 
+    // Update every second to keep the "ago" time fresh
     const interval = setInterval(() => {
-      setSecondsUntilRefresh(calculateTimeUntilRefresh())
+      setSecondsAgo(calculateSecondsAgo())
     }, 1000)
 
     return () => clearInterval(interval)
   }, [lastScrapeAt])
 
-  const secondsAgo = lastScrapeAt
-    ? Math.floor((Date.now() - new Date(lastScrapeAt).getTime()) / 1000)
-    : 999999
-
   const freshnessStatus = getFreshnessStatus(secondsAgo)
   const freshnessColor = getFreshnessColor(freshnessStatus)
+
+  const lastScrapeDate = lastScrapeAt ? new Date(lastScrapeAt) : null
 
   return (
     <div className="bg-white shadow rounded-lg p-4 mb-6">
@@ -55,8 +67,8 @@ export function StatusBar({
           <div className="flex items-center space-x-2">
             <div className={cn('w-3 h-3 rounded-full', freshnessColor)} />
             <span className="text-sm text-gray-600">
-              {lastScrapeAt
-                ? `Next update in ${secondsUntilRefresh}s`
+              {lastScrapeDate
+                ? `Refreshed at ${formatTime(lastScrapeDate)} (${formatTimeAgo(secondsAgo)})`
                 : 'No data yet'}
             </span>
           </div>
