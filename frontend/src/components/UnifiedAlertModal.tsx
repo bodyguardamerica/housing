@@ -4,26 +4,19 @@ import { useState, useEffect } from 'react'
 import type { LocalAlert } from '@/lib/types'
 import { useAuth } from '@/hooks/useAuth'
 
-// Helper to get the right storage based on auth status
-// Anonymous users use sessionStorage (cleared on browser close)
-// Authenticated users use localStorage (persists)
-function getWatcherStorage(isAuthenticated: boolean): Storage {
-  if (typeof window === 'undefined') return localStorage
-  return isAuthenticated ? localStorage : sessionStorage
-}
-
-function getWatcherTokens(isAuthenticated: boolean): Record<string, string> {
-  const storage = getWatcherStorage(isAuthenticated)
+// Discord watchers require authentication, so we always use localStorage
+function getWatcherTokens(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
   try {
-    return JSON.parse(storage.getItem('watcher_tokens') || '{}')
+    return JSON.parse(localStorage.getItem('watcher_tokens') || '{}')
   } catch {
     return {}
   }
 }
 
-function setWatcherTokens(isAuthenticated: boolean, tokens: Record<string, string>) {
-  const storage = getWatcherStorage(isAuthenticated)
-  storage.setItem('watcher_tokens', JSON.stringify(tokens))
+function setWatcherTokens(tokens: Record<string, string>) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('watcher_tokens', JSON.stringify(tokens))
 }
 
 interface UnifiedAlertModalProps {
@@ -116,7 +109,7 @@ export function UnifiedAlertModal({
       // If user disabled Discord on an existing alert, delete the watcher
       if (!discordEnabled && editingAlert?.discordWatcherId) {
         try {
-          const tokens = getWatcherTokens(isAuthenticated)
+          const tokens = getWatcherTokens()
           const token = tokens[editingAlert.discordWatcherId]
           if (token) {
             await fetch(`/api/watchers?id=${editingAlert.discordWatcherId}`, {
@@ -124,7 +117,7 @@ export function UnifiedAlertModal({
               headers: { Authorization: `Bearer ${token}` },
             })
             delete tokens[editingAlert.discordWatcherId]
-            setWatcherTokens(isAuthenticated, tokens)
+            setWatcherTokens(tokens)
           }
         } catch (err) {
           console.error('Failed to delete Discord watcher:', err)
@@ -153,10 +146,10 @@ export function UnifiedAlertModal({
 
         const data = await response.json()
         discordWatcherId = data.id
-        // Store manage token (sessionStorage for anonymous, localStorage for authenticated)
-        const existingTokens = getWatcherTokens(isAuthenticated)
+        // Store manage token in localStorage (Discord requires authentication)
+        const existingTokens = getWatcherTokens()
         existingTokens[data.id] = data.manage_token
-        setWatcherTokens(isAuthenticated, existingTokens)
+        setWatcherTokens(existingTokens)
       }
 
       // Create local alert (always create so Discord can be linked)
@@ -277,19 +270,24 @@ export function UnifiedAlertModal({
                 </label>
 
                 <div>
-                  <label className="flex items-start space-x-3 cursor-pointer">
+                  <label className={`flex items-start space-x-3 ${isAuthenticated ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                     <input
                       type="checkbox"
                       checked={discordEnabled}
                       onChange={(e) => setDiscordEnabled(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 text-gencon-blue border-gray-300 rounded"
+                      disabled={!isAuthenticated}
+                      className="w-4 h-4 mt-0.5 text-gencon-blue border-gray-300 rounded disabled:opacity-50"
                     />
                     <div>
                       <span className="text-sm font-medium text-gray-900">Discord</span>
-                      <p className="text-xs text-gray-500">Send notifications to a Discord channel</p>
+                      <p className="text-xs text-gray-500">
+                        {isAuthenticated
+                          ? 'Send notifications to a Discord channel'
+                          : 'Sign in to enable Discord notifications'}
+                      </p>
                     </div>
                   </label>
-                  {discordEnabled && (
+                  {discordEnabled && isAuthenticated && (
                     <div className="mt-2 ml-7">
                       {editingAlert?.discordWatcherId && !discordWebhook ? (
                         <p className="text-sm text-green-600">
