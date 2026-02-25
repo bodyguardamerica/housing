@@ -18,12 +18,15 @@ interface CreateWatcherRequest {
 }
 
 // Send a test message to Discord webhook
-async function sendDiscordTestMessage(webhookUrl: string, alertName: string): Promise<void> {
+async function sendDiscordTestMessage(webhookUrl: string, alertName: string, discordMention?: string): Promise<void> {
   try {
+    const mentionPrefix = discordMention ? `${discordMention} ` : ''
+
     const message = {
+      content: `${mentionPrefix}✅ **Alert Created**`,
       embeds: [{
-        title: '✅ Alert Created',
-        description: `Alert **"${alertName}"** has been set up successfully!`,
+        title: `Alert: ${alertName}`,
+        description: 'Your alert has been set up successfully!',
         color: 0x22c55e, // green
         fields: [
           {
@@ -32,7 +35,7 @@ async function sendDiscordTestMessage(webhookUrl: string, alertName: string): Pr
           }
         ],
         footer: {
-          text: 'GenCon Hotel Tracker',
+          text: 'Lottery Losers | GenCon Hotel Tracker',
         },
         timestamp: new Date().toISOString(),
       }]
@@ -197,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     // Send test message to Discord if webhook provided
     if (body.discord_webhook_url && body.alert_name) {
-      await sendDiscordTestMessage(body.discord_webhook_url, body.alert_name)
+      await sendDiscordTestMessage(body.discord_webhook_url, body.alert_name, body.discord_mention)
     }
 
     return NextResponse.json({
