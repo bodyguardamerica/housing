@@ -94,6 +94,9 @@ export default function DashboardPage() {
             sound_enabled?: boolean
             full_screen_enabled?: boolean
             discord_watcher_id?: string
+            sms_enabled?: boolean
+            call_enabled?: boolean
+            phone_number?: string
             created_at: string
           }) => ({
             id: sa.id,
@@ -108,6 +111,10 @@ export default function DashboardPage() {
             soundEnabled: sa.sound_enabled ?? true,
             fullScreenEnabled: sa.full_screen_enabled ?? true,
             discordWatcherId: sa.discord_watcher_id,
+            // Phone notifications
+            smsEnabled: sa.sms_enabled || false,
+            callEnabled: sa.call_enabled || false,
+            phoneNumber: sa.phone_number,
           }))
 
           setAlerts(convertedAlerts)
@@ -147,6 +154,10 @@ export default function DashboardPage() {
           sound_enabled: alertData.soundEnabled,
           full_screen_enabled: alertData.fullScreenEnabled,
           discord_watcher_id: alertData.discordWatcherId,
+          // Phone notifications
+          sms_enabled: alertData.smsEnabled,
+          call_enabled: alertData.callEnabled,
+          phone_number: alertData.phoneNumber,
         }),
       })
 

@@ -89,6 +89,10 @@ export async function POST(request: NextRequest) {
       sound_enabled: body.sound_enabled ?? true,
       full_screen_enabled: body.full_screen_enabled ?? true,
       discord_watcher_id: body.discord_watcher_id || null,
+      // Phone notifications
+      sms_enabled: body.sms_enabled || false,
+      call_enabled: body.call_enabled || false,
+      phone_number: body.phone_number || null,
     })
     .select()
     .single()
@@ -138,6 +142,10 @@ export async function PUT(request: NextRequest) {
       sound_enabled: body.sound_enabled,
       full_screen_enabled: body.full_screen_enabled,
       discord_watcher_id: body.discord_watcher_id,
+      // Phone notifications
+      sms_enabled: body.sms_enabled,
+      call_enabled: body.call_enabled,
+      phone_number: body.phone_number,
     })
     .eq('id', body.id)
     .eq('user_id', user.id)
