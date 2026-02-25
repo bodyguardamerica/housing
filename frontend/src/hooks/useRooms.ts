@@ -1,16 +1,19 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 import type { RoomAvailability, RoomFilters, RoomsResponse } from '@/lib/types'
 
-// Poll every 15 seconds to keep data fresh (scraper runs every 60s)
-const POLL_INTERVAL_MS = 15000
+// Fallback poll interval (only if Realtime fails)
+const FALLBACK_POLL_INTERVAL_MS = 60000
 
 export function useRooms(filters: RoomFilters = {}) {
   const [rooms, setRooms] = useState<RoomAvailability[]>([])
   const [meta, setMeta] = useState<RoomsResponse['meta'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [realtimeConnected, setRealtimeConnected] = useState(false)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -72,14 +75,61 @@ export function useRooms(filters: RoomFilters = {}) {
     fetchRooms()
   }, [fetchRooms])
 
-  // Poll for updates (Realtime requires paid Supabase plan)
+  // Realtime subscription - listen for new successful scrapes
   useEffect(() => {
-    const pollInterval = setInterval(() => {
-      fetchRooms()
-    }, POLL_INTERVAL_MS)
+    // Subscribe to scrape_runs table for INSERT events
+    const channel = supabase
+      .channel('scrape-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'scrape_runs',
+          filter: 'status=eq.success',
+        },
+        (payload) => {
+          // New successful scrape completed - refetch rooms
+          console.log('Realtime: New scrape completed, refreshing data...')
+          fetchRooms()
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Realtime: Connected to scrape updates')
+          setRealtimeConnected(true)
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.log('Realtime: Disconnected, falling back to polling')
+          setRealtimeConnected(false)
+        }
+      })
 
-    return () => clearInterval(pollInterval)
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
   }, [fetchRooms])
 
-  return { rooms, meta, loading, error, refetch: fetchRooms }
+  // Fallback polling (only if Realtime is not connected)
+  useEffect(() => {
+    if (realtimeConnected) {
+      // Realtime is working, no need to poll frequently
+      // Still poll every 60s as a safety net
+      const fallbackInterval = setInterval(() => {
+        fetchRooms()
+      }, FALLBACK_POLL_INTERVAL_MS)
+      return () => clearInterval(fallbackInterval)
+    } else {
+      // Realtime not connected, poll more frequently
+      const pollInterval = setInterval(() => {
+        fetchRooms()
+      }, 15000)
+      return () => clearInterval(pollInterval)
+    }
+  }, [fetchRooms, realtimeConnected])
+
+  return { rooms, meta, loading, error, refetch: fetchRooms, realtimeConnected }
 }

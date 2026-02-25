@@ -398,7 +398,7 @@ class Database:
     async def trigger_notifications_batch(
         self,
         notifications: list[tuple[str, dict]],  # List of (snapshot_id, snapshot_data)
-        max_concurrent: int = 5,
+        max_concurrent: int = 15,  # Pro tier supports higher concurrency
     ):
         """
         Trigger notifications for multiple snapshots in parallel with controlled concurrency.

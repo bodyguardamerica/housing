@@ -1,6 +1,6 @@
 """FastAPI application for the GenCon Hotels scraper."""
 
-__version__ = "1.4.0"  # + Room keys cache for faster change detection
+__version__ = "1.5.0"  # Pro tier: Realtime, 15x notifications, 45s interval
 
 import asyncio
 import logging
