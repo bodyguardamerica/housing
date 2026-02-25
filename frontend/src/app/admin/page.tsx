@@ -17,7 +17,6 @@ export default function AdminPage() {
     grantPermission,
     updatePermission,
     revokePermission,
-    seedAdmin,
   } = useAdmin()
 
   const [showGrantModal, setShowGrantModal] = useState(false)
@@ -43,20 +42,6 @@ export default function AdminPage() {
       fetchPermissions()
     }
   }, [isAdmin, fetchPermissions])
-
-  // Handle seed admin
-  const handleSeedAdmin = async () => {
-    setError(null)
-    setSuccess(null)
-    const result = await seedAdmin()
-    if (result.error) {
-      setError(result.error)
-    } else {
-      setSuccess(result.message || 'Admin seeded!')
-      // Refresh the page to update admin status
-      window.location.reload()
-    }
-  }
 
   // Handle grant permission
   const handleGrant = async () => {
@@ -124,14 +109,6 @@ export default function AdminPage() {
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center gap-4">
         <div className="text-gray-600">Access denied</div>
         <p className="text-sm text-gray-500">You are not an admin.</p>
-        <button
-          onClick={handleSeedAdmin}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Seed Admin (First-time Setup)
-        </button>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {success && <p className="text-green-600 text-sm">{success}</p>}
       </div>
     )
   }
