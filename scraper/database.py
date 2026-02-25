@@ -140,7 +140,25 @@ class Database:
 
     async def upsert_hotel(self, data: HotelUpsert) -> str:
         """Upsert a hotel record and return its ID."""
-        # First try to find existing hotel by name and year (more reliable than passkey_id)
+        # First, check if a hotel with this passkey_id already exists (most reliable)
+        if data.passkey_hotel_id > 0:
+            existing_by_passkey = self._get("hotels", {
+                "passkey_hotel_id": f"eq.{data.passkey_hotel_id}",
+                "year": f"eq.{data.year}",
+                "select": "id",
+            })
+            if existing_by_passkey:
+                hotel_id = existing_by_passkey[0]["id"]
+                # Update with latest distance info
+                update_data = {
+                    "distance_from_icc": data.distance_from_icc,
+                    "distance_unit": data.distance_unit,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+                self._patch("hotels", update_data, {"id": f"eq.{hotel_id}"})
+                return hotel_id
+
+        # Fall back to name-based lookup for hotels with placeholder passkey_ids
         existing = self._get("hotels", {
             "name": f"eq.{data.name}",
             "year": f"eq.{data.year}",
@@ -149,17 +167,14 @@ class Database:
 
         if existing:
             hotel_id = existing[0]["id"]
-            # Update existing with real passkey_hotel_id if we have a positive one
+            # Update existing - but DON'T try to update passkey_hotel_id
+            # to avoid conflicts with hotels that already have the real ID
             # Note: Don't overwrite has_skywalk - it's manually set from Gen Con's hotel map
             update_data = {
                 "distance_from_icc": data.distance_from_icc,
                 "distance_unit": data.distance_unit,
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            # Update passkey_hotel_id if the current one is a placeholder (negative)
-            if existing[0]["passkey_hotel_id"] < 0 and data.passkey_hotel_id > 0:
-                update_data["passkey_hotel_id"] = data.passkey_hotel_id
-
             self._patch("hotels", update_data, {"id": f"eq.{hotel_id}"})
             return hotel_id
         else:
