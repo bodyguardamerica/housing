@@ -224,6 +224,25 @@ export interface LocalAlert {
   soundEnabled: boolean
   fullScreenEnabled: boolean // Show full-screen popup when match found
   discordWatcherId?: string // Linked Discord watcher ID (if Discord was enabled)
+  // Phone notifications (requires admin permission)
+  smsEnabled?: boolean
+  callEnabled?: boolean
+  phoneNumber?: string
+}
+
+// Phone permission types
+export interface PhonePermission {
+  id: string
+  user_id: string
+  user_email: string | null
+  sms_enabled: boolean
+  call_enabled: boolean
+  daily_sms_limit: number
+  daily_call_limit: number
+  sms_sent_today: number
+  calls_made_today: number
+  created_at: string
+  updated_at: string
 }
 
 export interface AlertMatch {

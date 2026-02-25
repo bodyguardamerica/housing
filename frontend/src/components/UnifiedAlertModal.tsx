@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { LocalAlert } from '@/lib/types'
 import { HOTEL_AREAS } from '@/lib/types'
 import { useAuth } from '@/hooks/useAuth'
+import { usePhonePermissions } from '@/hooks/usePhonePermissions'
 
 // Discord watchers require authentication, so we always use localStorage
 function getWatcherTokens(): Record<string, string> {
@@ -33,7 +34,8 @@ export function UnifiedAlertModal({
   onSaveLocal,
   editingAlert,
 }: UnifiedAlertModalProps) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, session } = useAuth()
+  const { permissions: phonePermissions, sendTestSms, makeTestCall } = usePhonePermissions()
 
   // Notification types
   const [visualEnabled, setVisualEnabled] = useState(true)
@@ -42,6 +44,13 @@ export function UnifiedAlertModal({
   const [discordEnabled, setDiscordEnabled] = useState(false)
   const [discordWebhook, setDiscordWebhook] = useState('')
   const [discordMention, setDiscordMention] = useState('')
+
+  // Phone notifications (requires permission)
+  const [smsEnabled, setSmsEnabled] = useState(false)
+  const [callEnabled, setCallEnabled] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [smsTestStatus, setSmsTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [callTestStatus, setCallTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
 
   // Filter criteria
   const [name, setName] = useState('')
@@ -74,6 +83,12 @@ export function UnifiedAlertModal({
       setDiscordEnabled(!!editingAlert?.discordWatcherId)
       setDiscordWebhook('') // Webhook is stored server-side, don't expose
       setDiscordMention('') // Will be fetched below if editing
+      // Phone notifications
+      setSmsEnabled(editingAlert?.smsEnabled || false)
+      setCallEnabled(editingAlert?.callEnabled || false)
+      setPhoneNumber(editingAlert?.phoneNumber || '')
+      setSmsTestStatus('idle')
+      setCallTestStatus('idle')
       setError(null)
       setTestStatus('idle')
     }
@@ -132,9 +147,15 @@ export function UnifiedAlertModal({
       return
     }
 
-    const hasNotificationType = visualEnabled || fullScreenEnabled || soundEnabled || discordEnabled
+    const hasNotificationType = visualEnabled || fullScreenEnabled || soundEnabled || discordEnabled || smsEnabled || callEnabled
     if (!hasNotificationType) {
       setError('Please select at least one notification type')
+      return
+    }
+
+    // Validate phone number if SMS or call enabled
+    if ((smsEnabled || callEnabled) && !phoneNumber) {
+      setError('Please enter a phone number for SMS/call notifications')
       return
     }
 
@@ -177,12 +198,18 @@ export function UnifiedAlertModal({
 
       // Create NEW Discord watcher only if enabled AND new webhook provided
       if (discordEnabled && discordWebhook) {
+        // Convert comma-separated mentions to space-separated for Discord
+        const processedMention = discordMention
+          .split(',')
+          .map(m => m.trim())
+          .filter(m => m.length > 0)
+          .join(' ')
         const response = await fetch('/api/watchers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             discord_webhook_url: discordWebhook,
-            discord_mention: discordMention.trim() || undefined,
+            discord_mention: processedMention || undefined,
             max_price: maxPrice ? parseFloat(maxPrice) : undefined,
             max_distance: maxDistance ? parseFloat(maxDistance) : undefined,
             require_skywalk: requireSkywalk,
@@ -216,6 +243,10 @@ export function UnifiedAlertModal({
         soundEnabled,
         fullScreenEnabled,
         discordWatcherId,
+        // Phone notifications
+        smsEnabled,
+        callEnabled,
+        phoneNumber: phoneNumber.trim() || undefined,
       })
 
       // Reset and close
@@ -242,6 +273,12 @@ export function UnifiedAlertModal({
     setDiscordWebhook('')
     setDiscordMention('')
     setTestStatus('idle')
+    // Phone notifications
+    setSmsEnabled(false)
+    setCallEnabled(false)
+    setPhoneNumber('')
+    setSmsTestStatus('idle')
+    setCallTestStatus('idle')
   }
 
   const sendDiscordTest = async () => {
@@ -252,7 +289,13 @@ export function UnifiedAlertModal({
 
     setTestStatus('sending')
     try {
-      const mentionPrefix = discordMention.trim() ? `${discordMention.trim()} ` : ''
+      // Convert comma-separated mentions to space-separated for Discord
+      const mentions = discordMention
+        .split(',')
+        .map(m => m.trim())
+        .filter(m => m.length > 0)
+        .join(' ')
+      const mentionPrefix = mentions ? `${mentions} ` : ''
       const message = {
         content: `${mentionPrefix}🔔 **Test Notification**`,
         embeds: [{
@@ -420,7 +463,7 @@ export function UnifiedAlertModal({
                           value={discordMention}
                           onChange={(e) => setDiscordMention(e.target.value)}
                           className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
-                          placeholder="@mention (optional) e.g., <@123456789>"
+                          placeholder="e.g., <@123>, <@456> (comma-separated)"
                         />
                         <details className="mt-1">
                           <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
@@ -433,6 +476,9 @@ export function UnifiedAlertModal({
                             <p>Right-click a user or role → <strong>Copy ID</strong></p>
                             <p className="pt-1 border-t border-blue-200">
                               <strong>Format:</strong> User: <code className="bg-blue-100 px-1 rounded">&lt;@ID&gt;</code> | Role: <code className="bg-blue-100 px-1 rounded">&lt;@&amp;ID&gt;</code>
+                            </p>
+                            <p className="pt-1">
+                              <strong>Multiple:</strong> Separate with commas, e.g., <code className="bg-blue-100 px-1 rounded">&lt;@123&gt;, &lt;@456&gt;</code>
                             </p>
                           </div>
                         </details>
@@ -458,6 +504,133 @@ export function UnifiedAlertModal({
                     </div>
                   )}
                 </div>
+
+                {/* SMS Notification - only shown if user has permission */}
+                {phonePermissions?.sms_enabled && (
+                  <div>
+                    <label className="flex items-start space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smsEnabled}
+                        onChange={(e) => setSmsEnabled(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 text-gencon-blue border-gray-300 rounded"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">SMS Text Message</span>
+                        <p className="text-xs text-gray-500">Receive text alerts on your phone</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {/* Phone Call Notification - only shown if user has permission */}
+                {phonePermissions?.call_enabled && (
+                  <div>
+                    <label className="flex items-start space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={callEnabled}
+                        onChange={(e) => setCallEnabled(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 text-gencon-blue border-gray-300 rounded"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Phone Call</span>
+                        <p className="text-xs text-gray-500">Receive automated voice call (loud, unmissable)</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {/* Phone number input - shown if SMS or Call enabled */}
+                {(smsEnabled || callEnabled) && (
+                  <div className="ml-7 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
+                        placeholder="+1 555-123-4567"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Include country code (e.g., +1 for US)
+                      </p>
+                    </div>
+
+                    {/* Test buttons */}
+                    <div className="flex space-x-2">
+                      {smsEnabled && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!phoneNumber) {
+                              setError('Enter a phone number first')
+                              return
+                            }
+                            setSmsTestStatus('sending')
+                            const result = await sendTestSms(phoneNumber)
+                            if (result.success) {
+                              setSmsTestStatus('success')
+                              setTimeout(() => setSmsTestStatus('idle'), 3000)
+                            } else {
+                              setSmsTestStatus('error')
+                              setError(result.error || 'SMS failed')
+                            }
+                          }}
+                          disabled={!phoneNumber || smsTestStatus === 'sending'}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                            smsTestStatus === 'success'
+                              ? 'bg-green-100 text-green-700'
+                              : smsTestStatus === 'error'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50'
+                          }`}
+                        >
+                          {smsTestStatus === 'sending' ? 'Sending...' :
+                           smsTestStatus === 'success' ? '✓ SMS Sent!' :
+                           smsTestStatus === 'error' ? 'Failed' :
+                           'Test SMS'}
+                        </button>
+                      )}
+                      {callEnabled && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!phoneNumber) {
+                              setError('Enter a phone number first')
+                              return
+                            }
+                            setCallTestStatus('sending')
+                            const result = await makeTestCall(phoneNumber)
+                            if (result.success) {
+                              setCallTestStatus('success')
+                              setTimeout(() => setCallTestStatus('idle'), 3000)
+                            } else {
+                              setCallTestStatus('error')
+                              setError(result.error || 'Call failed')
+                            }
+                          }}
+                          disabled={!phoneNumber || callTestStatus === 'sending'}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                            callTestStatus === 'success'
+                              ? 'bg-green-100 text-green-700'
+                              : callTestStatus === 'error'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200 disabled:opacity-50'
+                          }`}
+                        >
+                          {callTestStatus === 'sending' ? 'Calling...' :
+                           callTestStatus === 'success' ? '✓ Call Made!' :
+                           callTestStatus === 'error' ? 'Failed' :
+                           'Test Call'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
