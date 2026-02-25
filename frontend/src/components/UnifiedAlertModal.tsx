@@ -40,6 +40,7 @@ export function UnifiedAlertModal({
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [discordEnabled, setDiscordEnabled] = useState(false)
   const [discordWebhook, setDiscordWebhook] = useState('')
+  const [discordMention, setDiscordMention] = useState('')
 
   // Filter criteria
   const [name, setName] = useState('')
@@ -68,6 +69,7 @@ export function UnifiedAlertModal({
       // Preserve Discord settings if alert already has a linked watcher
       setDiscordEnabled(!!editingAlert?.discordWatcherId)
       setDiscordWebhook('') // Webhook is stored server-side, don't expose
+      setDiscordMention('') // Mention is stored server-side
       setError(null)
     }
   }, [isOpen, editingAlert])
@@ -133,6 +135,7 @@ export function UnifiedAlertModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             discord_webhook_url: discordWebhook,
+            discord_mention: discordMention.trim() || undefined,
             max_price: maxPrice ? parseFloat(maxPrice) : undefined,
             max_distance: maxDistance ? parseFloat(maxDistance) : undefined,
             require_skywalk: requireSkywalk,
@@ -190,6 +193,7 @@ export function UnifiedAlertModal({
     setVisualEnabled(true)
     setDiscordEnabled(false)
     setDiscordWebhook('')
+    setDiscordMention('')
   }
 
   return (
@@ -292,7 +296,7 @@ export function UnifiedAlertModal({
                     </div>
                   </label>
                   {discordEnabled && isAuthenticated && (
-                    <div className="mt-2 ml-7">
+                    <div className="mt-2 ml-7 space-y-2">
                       {editingAlert?.discordWatcherId && !discordWebhook ? (
                         <p className="text-sm text-green-600">
                           ✓ Discord webhook configured
@@ -306,6 +310,18 @@ export function UnifiedAlertModal({
                           placeholder="https://discord.com/api/webhooks/..."
                         />
                       )}
+                      <div>
+                        <input
+                          type="text"
+                          value={discordMention}
+                          onChange={(e) => setDiscordMention(e.target.value)}
+                          className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
+                          placeholder="@mention (optional) e.g., <@123456789>"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          User: &lt;@USER_ID&gt; | Role: &lt;@&amp;ROLE_ID&gt;
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

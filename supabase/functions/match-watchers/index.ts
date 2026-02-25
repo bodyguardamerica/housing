@@ -39,6 +39,12 @@ serve(async (req) => {
       .eq('id', payload.record.hotel_id)
       .single()
 
+    // Get watcher details for discord_mention
+    const { data: watcherDetails } = await supabase
+      .from('watchers')
+      .select('id, discord_mention')
+      .not('discord_webhook_url', 'is', null)
+
     if (!hotel) {
       throw new Error('Hotel not found')
     }
@@ -98,6 +104,10 @@ serve(async (req) => {
 
       try {
         if (match.channel === 'discord') {
+          // Get discord_mention for this watcher
+          const watcherInfo = watcherDetails?.find(w => w.id === match.watcher_id)
+          const discordMention = watcherInfo?.discord_mention || undefined
+
           // Call Discord notifier
           const response = await fetch(
             `${supabaseUrl}/functions/v1/notify-discord`,
@@ -110,6 +120,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 ...notificationPayload,
                 webhook_url: match.destination,
+                discord_mention: discordMention,
               }),
             }
           )

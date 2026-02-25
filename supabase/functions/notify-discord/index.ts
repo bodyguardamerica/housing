@@ -6,6 +6,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 interface NotificationPayload {
   watcher_id: string
   webhook_url: string
+  discord_mention?: string // Optional mention like <@123456789>
   hotel_name: string
   room_type: string
   available_count: number
@@ -81,8 +82,11 @@ serve(async (req) => {
       timestamp: new Date().toISOString(),
     }
 
+    // Build content with optional mention
+    const mentionPrefix = payload.discord_mention ? `${payload.discord_mention} ` : ''
+
     const discordPayload = {
-      content: '🚨 **New Room Alert!**',
+      content: `${mentionPrefix}🚨 **New Room Alert!**`,
       embeds: [embed],
     }
 

@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'crypto'
 interface CreateWatcherRequest {
   email?: string
   discord_webhook_url?: string
+  discord_mention?: string // Discord mention string like <@123456789>
   phone_number?: string
   push_subscription?: Record<string, unknown>
   hotel_id?: string
@@ -164,6 +165,7 @@ export async function POST(request: NextRequest) {
     const watcherData = {
       email: body.email || null,
       discord_webhook_url: body.discord_webhook_url || null,
+      discord_mention: body.discord_mention || null,
       phone_number: body.phone_number || null,
       push_subscription: body.push_subscription || null,
       manage_token_hash: manageTokenHash,
