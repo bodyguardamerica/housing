@@ -30,16 +30,12 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Redirect non-admins
+  // Redirect unauthenticated users only (admins and non-admins can stay to see seed button)
   useEffect(() => {
-    if (!authLoading && !adminLoading) {
-      if (!isAuthenticated) {
-        router.push('/')
-      } else if (!isAdmin) {
-        router.push('/')
-      }
+    if (!authLoading && !isAuthenticated) {
+      router.push('/')
     }
-  }, [isAuthenticated, isAdmin, authLoading, adminLoading, router])
+  }, [isAuthenticated, authLoading, router])
 
   // Fetch permissions when admin
   useEffect(() => {
