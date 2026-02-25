@@ -50,6 +50,15 @@ class Database:
         response.raise_for_status()
         return response.json()
 
+    def _post_batch(self, table: str, data: list[dict]) -> list:
+        """POST (bulk insert) request to Supabase. Accepts array of records."""
+        if not data:
+            return []
+        url = f"{self.base_url}/{table}"
+        response = self.client.post(url, json=data)
+        response.raise_for_status()
+        return response.json()
+
     def _patch(self, table: str, data: dict, params: dict) -> list:
         """PATCH (update) request to Supabase."""
         url = f"{self.base_url}/{table}"
@@ -218,6 +227,78 @@ class Database:
             })
 
         return snapshot_id
+
+    def _snapshot_to_dict(self, data: RoomSnapshotCreate) -> dict:
+        """Convert a RoomSnapshotCreate to a dict for database insert."""
+        insert_data = {
+            "scrape_run_id": data.scrape_run_id,
+            "hotel_id": data.hotel_id,
+            "room_type": data.room_type,
+            "available_count": data.available_count,
+            "nightly_rate": float(data.nightly_rate),
+            "total_price": float(data.total_price),
+            "check_in": data.check_in.isoformat(),
+            "check_out": data.check_out.isoformat(),
+            "year": data.year,
+        }
+        if data.room_description:
+            insert_data["room_description"] = data.room_description
+        if data.raw_block_data:
+            insert_data["raw_block_data"] = data.raw_block_data
+        return insert_data
+
+    async def create_room_snapshots_batch(self, snapshots: list[RoomSnapshotCreate]) -> list[str]:
+        """
+        Batch insert room snapshots in a single POST request.
+        Returns list of snapshot IDs in the same order as input.
+
+        Note: This does NOT trigger notifications - caller must handle that separately.
+        """
+        if not snapshots:
+            return []
+
+        try:
+            insert_data = [self._snapshot_to_dict(s) for s in snapshots]
+            result = self._post_batch("room_snapshots", insert_data)
+            return [r["id"] for r in result]
+        except Exception as e:
+            logger.warning(f"Batch insert failed ({e}), falling back to individual inserts")
+            # Fallback to individual inserts (without triggering notifications here)
+            ids = []
+            for snapshot in snapshots:
+                try:
+                    result = self._post("room_snapshots", self._snapshot_to_dict(snapshot))
+                    ids.append(result[0]["id"] if result else None)
+                except Exception as inner_e:
+                    logger.error(f"Individual insert failed: {inner_e}")
+                    ids.append(None)
+            return ids
+
+    async def trigger_notifications_batch(
+        self,
+        notifications: list[tuple[str, dict]],  # List of (snapshot_id, snapshot_data)
+        max_concurrent: int = 5,
+    ):
+        """
+        Trigger notifications for multiple snapshots in parallel with controlled concurrency.
+
+        Args:
+            notifications: List of (snapshot_id, snapshot_data) tuples
+            max_concurrent: Maximum concurrent notification calls (default 5)
+        """
+        import asyncio
+
+        if not notifications:
+            return
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def notify_one(snapshot_id: str, snapshot_data: dict):
+            async with semaphore:
+                await self.trigger_notifications(snapshot_id, snapshot_data)
+
+        tasks = [notify_one(sid, data) for sid, data in notifications if sid]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def get_last_scrape_hash(self, year: int) -> Optional[str]:
         """Get a hash of the last successful scrape's data for deduplication."""
@@ -453,9 +534,9 @@ async def process_multi_night_result(
             "rate": night.nightly_rate,
         })
 
-    # Create room snapshots for each hotel+room combination (with timing)
-    create_snapshots_start = time.perf_counter()
-    notification_time_ms = 0  # Track notification time separately
+    # PHASE 1: Collect all snapshots to insert (don't insert yet)
+    snapshots_to_insert: list[RoomSnapshotCreate] = []
+    notification_indices: list[int] = []  # Indices of snapshots that need notifications
 
     for (passkey_hotel_id, room_type), data in availability_map.items():
         db_hotel_id = hotel_id_map.get(passkey_hotel_id)
@@ -486,7 +567,7 @@ async def process_multi_night_result(
         total_rate = sum(n["rate"] for n in nights)
         avg_nightly_rate = total_rate / len(nights) if nights else 0
 
-        await db.create_room_snapshot(RoomSnapshotCreate(
+        snapshot = RoomSnapshotCreate(
             scrape_run_id=scrape_run_id,
             hotel_id=db_hotel_id,
             room_type=room_type,
@@ -502,16 +583,24 @@ async def process_multi_night_result(
                 "nights_available": nights_available,
                 "total_nights": total_nights_in_range,
             },
-        ))
+        )
+        snapshots_to_insert.append(snapshot)
+
+        # Track if this snapshot needs a notification (has availability or partial)
+        has_availability = full_stay_available > 0
+        has_partial = is_partial and nights_available > 0
+        if has_availability or has_partial:
+            notification_indices.append(len(snapshots_to_insert) - 1)
+
         rooms_found += 1
         processed_room_keys.add((db_hotel_id, room_type))
 
-    # Create "sold out" snapshots for rooms that were previously available but not in current results
+    # Add "sold out" snapshots for rooms that were previously available but not in current results
     sold_out_count = 0
     for (prev_hotel_id, prev_room_type), prev_data in previous_room_keys.items():
         if (prev_hotel_id, prev_room_type) not in processed_room_keys:
             # This room was available before but not in current scrape - mark as sold out
-            await db.create_room_snapshot(RoomSnapshotCreate(
+            snapshot = RoomSnapshotCreate(
                 scrape_run_id=scrape_run_id,
                 hotel_id=prev_hotel_id,
                 room_type=prev_room_type,
@@ -528,24 +617,51 @@ async def process_multi_night_result(
                     "total_nights": total_nights_in_range,
                     "sold_out": True,
                 },
-            ))
+            )
+            snapshots_to_insert.append(snapshot)
             sold_out_count += 1
             logger.info(f"Marked {prev_room_type} at hotel {prev_hotel_id} as sold out")
 
     if sold_out_count > 0:
         logger.info(f"Marked {sold_out_count} room types as sold out")
 
-    # Record snapshot creation timing (includes notifications since they're called in create_room_snapshot)
-    if timing:
-        total_snapshot_time = int((time.perf_counter() - create_snapshots_start) * 1000)
-        timing.create_snapshots_ms = total_snapshot_time
-        # Note: notification time is included in create_snapshots_ms since trigger_notifications
-        # is called within create_room_snapshot. For more detailed breakdown, see logs.
+    # PHASE 2: Batch insert all snapshots at once (with timing)
+    create_snapshots_start = time.perf_counter()
+    snapshot_ids = await db.create_room_snapshots_batch(snapshots_to_insert)
 
+    if timing:
+        timing.create_snapshots_ms = int((time.perf_counter() - create_snapshots_start) * 1000)
+
+    logger.info(f"Batch inserted {len(snapshot_ids)} snapshots in {timing.create_snapshots_ms if timing else 'N/A'}ms")
+
+    # PHASE 3: Batch trigger notifications for snapshots with availability
+    notify_start = time.perf_counter()
+    notifications_to_send = []
+    for idx in notification_indices:
+        snapshot_id = snapshot_ids[idx] if idx < len(snapshot_ids) else None
+        if snapshot_id:
+            snapshot = snapshots_to_insert[idx]
+            notifications_to_send.append((snapshot_id, {
+                "hotel_id": snapshot.hotel_id,
+                "room_type": snapshot.room_type,
+                "available_count": snapshot.available_count,
+                "nightly_rate": float(snapshot.nightly_rate),
+                "total_price": float(snapshot.total_price),
+                "check_in": snapshot.check_in.isoformat(),
+                "check_out": snapshot.check_out.isoformat(),
+                "year": snapshot.year,
+            }))
+
+    if notifications_to_send:
+        await db.trigger_notifications_batch(notifications_to_send, max_concurrent=5)
+
+    if timing:
+        timing.trigger_notifications_ms = int((time.perf_counter() - notify_start) * 1000)
         logger.info(
             f"DB timing: prev_keys={timing.get_previous_keys_ms}ms, "
             f"upsert_hotels={timing.upsert_hotels_ms}ms, "
-            f"create_snapshots={timing.create_snapshots_ms}ms"
+            f"create_snapshots={timing.create_snapshots_ms}ms, "
+            f"notifications={timing.trigger_notifications_ms}ms ({len(notifications_to_send)} sent)"
         )
 
     return len(hotels_processed), rooms_found
