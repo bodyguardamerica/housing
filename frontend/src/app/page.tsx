@@ -89,7 +89,7 @@ export default function DashboardPage() {
             max_price?: number
             max_distance?: number
             require_skywalk?: boolean
-            require_downtown?: boolean
+            included_areas?: string[]
             enabled?: boolean
             sound_enabled?: boolean
             full_screen_enabled?: boolean
@@ -102,7 +102,7 @@ export default function DashboardPage() {
             maxPrice: sa.max_price,
             maxDistance: sa.max_distance,
             requireSkywalk: sa.require_skywalk || false,
-            requireDowntown: sa.require_downtown || false,
+            includedAreas: sa.included_areas || [],
             createdAt: sa.created_at,
             enabled: sa.enabled ?? true,
             soundEnabled: sa.sound_enabled ?? true,
@@ -142,7 +142,7 @@ export default function DashboardPage() {
           max_price: alertData.maxPrice,
           max_distance: alertData.maxDistance,
           require_skywalk: alertData.requireSkywalk,
-          require_downtown: alertData.requireDowntown,
+          included_areas: alertData.includedAreas,
           enabled: alertData.enabled,
           sound_enabled: alertData.soundEnabled,
           full_screen_enabled: alertData.fullScreenEnabled,

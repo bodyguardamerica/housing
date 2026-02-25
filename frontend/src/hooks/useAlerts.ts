@@ -281,8 +281,10 @@ function roomMatchesAlert(room: RoomAvailability, alert: LocalAlert): boolean {
   // Skywalk requirement
   if (alert.requireSkywalk && !room.has_skywalk) return false
 
-  // Downtown requirement
-  if (alert.requireDowntown && room.area !== 'downtown') return false
+  // Area filter - if includedAreas is set, room must be in one of those areas
+  if (alert.includedAreas && alert.includedAreas.length > 0) {
+    if (!room.area || !alert.includedAreas.includes(room.area)) return false
+  }
 
   return true
 }

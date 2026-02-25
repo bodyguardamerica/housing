@@ -199,6 +199,17 @@ export interface RoomFilters {
 }
 
 // Local alert types (stored in localStorage)
+// Available hotel area options
+export const HOTEL_AREAS = {
+  downtown: 'Downtown',
+  'west/airport': 'West Side / Airport',
+  east: 'East Side',
+  north: 'North Side',
+  south: 'South Side',
+} as const
+
+export type HotelArea = keyof typeof HOTEL_AREAS
+
 export interface LocalAlert {
   id: string
   name: string
@@ -206,7 +217,7 @@ export interface LocalAlert {
   maxPrice?: number
   maxDistance?: number
   requireSkywalk?: boolean
-  requireDowntown?: boolean // Only match downtown hotels
+  includedAreas?: string[] // Only match hotels in these areas (empty = all areas)
   minNightsAvailable?: number // Minimum nights that must be available
   createdAt: string
   enabled: boolean

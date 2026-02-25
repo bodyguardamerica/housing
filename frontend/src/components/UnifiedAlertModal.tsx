@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { LocalAlert } from '@/lib/types'
+import { HOTEL_AREAS } from '@/lib/types'
 import { useAuth } from '@/hooks/useAuth'
 
 // Discord watchers require authentication, so we always use localStorage
@@ -48,7 +49,9 @@ export function UnifiedAlertModal({
   const [maxPrice, setMaxPrice] = useState('')
   const [maxDistance, setMaxDistance] = useState('')
   const [requireSkywalk, setRequireSkywalk] = useState(false)
-  const [requireDowntown, setRequireDowntown] = useState(false)
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([])
+  const [areasDropdownOpen, setAreasDropdownOpen] = useState(false)
+  const areasDropdownRef = useRef<HTMLDivElement>(null)
 
   // State
   const [loading, setLoading] = useState(false)
@@ -63,7 +66,7 @@ export function UnifiedAlertModal({
       setMaxPrice(editingAlert?.maxPrice?.toString() || '')
       setMaxDistance(editingAlert?.maxDistance?.toString() || '')
       setRequireSkywalk(editingAlert?.requireSkywalk || false)
-      setRequireDowntown(editingAlert?.requireDowntown || false)
+      setSelectedAreas(editingAlert?.includedAreas || [])
       setSoundEnabled(editingAlert?.soundEnabled ?? true)
       setFullScreenEnabled(editingAlert?.fullScreenEnabled ?? true)
       setVisualEnabled(true)
@@ -116,7 +119,7 @@ export function UnifiedAlertModal({
       return
     }
 
-    const hasAnyCriteria = hotelName || maxPrice || maxDistance || requireSkywalk || requireDowntown
+    const hasAnyCriteria = hotelName || maxPrice || maxDistance || requireSkywalk || selectedAreas.length > 0
     if (!hasAnyCriteria) {
       setError('Please set at least one filter criteria')
       return
@@ -189,7 +192,7 @@ export function UnifiedAlertModal({
         maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
         maxDistance: maxDistance ? parseFloat(maxDistance) : undefined,
         requireSkywalk,
-        requireDowntown,
+        includedAreas: selectedAreas.length > 0 ? selectedAreas : undefined,
         enabled: true,
         soundEnabled,
         fullScreenEnabled,
@@ -212,7 +215,7 @@ export function UnifiedAlertModal({
     setMaxPrice('')
     setMaxDistance('')
     setRequireSkywalk(false)
-    setRequireDowntown(false)
+    setSelectedAreas([])
     setSoundEnabled(true)
     setFullScreenEnabled(true)
     setVisualEnabled(true)
@@ -220,6 +223,25 @@ export function UnifiedAlertModal({
     setDiscordWebhook('')
     setDiscordMention('')
     setTestStatus('idle')
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (areasDropdownRef.current && !areasDropdownRef.current.contains(event.target as Node)) {
+        setAreasDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const toggleArea = (area: string) => {
+    setSelectedAreas(prev =>
+      prev.includes(area)
+        ? prev.filter(a => a !== area)
+        : [...prev, area]
+    )
   }
 
   const sendDiscordTest = async () => {
@@ -494,21 +516,75 @@ export function UnifiedAlertModal({
                   <input
                     type="checkbox"
                     checked={requireSkywalk}
-                    onChange={(e) => setRequireSkywalk(e.target.checked)}
+                    onChange={(e) => {
+                      setRequireSkywalk(e.target.checked)
+                      // Clear selected areas when skywalk is enabled (skywalk hotels are all downtown)
+                      if (e.target.checked) {
+                        setSelectedAreas([])
+                      }
+                    }}
                     className="w-4 h-4 text-gencon-blue border-gray-300 rounded"
                   />
                   <span className="text-sm text-gray-700">Require skywalk access</span>
                 </label>
 
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={requireDowntown}
-                    onChange={(e) => setRequireDowntown(e.target.checked)}
-                    className="w-4 h-4 text-gencon-blue border-gray-300 rounded"
-                  />
-                  <span className="text-sm text-gray-700">Downtown hotels only</span>
-                </label>
+                {/* Divider */}
+                <div className="border-t border-gray-200 my-2"></div>
+
+                {/* Include Areas Multi-Select */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Include Areas
+                  </label>
+                  <div ref={areasDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => !requireSkywalk && setAreasDropdownOpen(!areasDropdownOpen)}
+                      disabled={requireSkywalk}
+                      className={`w-full px-3 py-2 text-left border rounded-md text-sm flex items-center justify-between ${
+                        requireSkywalk
+                          ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-300 text-gray-900 hover:border-gray-400'
+                      }`}
+                    >
+                      <span className={selectedAreas.length === 0 ? 'text-gray-400' : ''}>
+                        {requireSkywalk
+                          ? 'Skywalk hotels only'
+                          : selectedAreas.length === 0
+                          ? 'All areas'
+                          : selectedAreas.length === 1
+                          ? HOTEL_AREAS[selectedAreas[0] as keyof typeof HOTEL_AREAS]
+                          : `${selectedAreas.length} areas selected`}
+                      </span>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {areasDropdownOpen && !requireSkywalk && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {Object.entries(HOTEL_AREAS).map(([key, label]) => (
+                          <label
+                            key={key}
+                            className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedAreas.includes(key)}
+                              onChange={() => toggleArea(key)}
+                              className="w-4 h-4 text-gencon-blue border-gray-300 rounded mr-2"
+                            />
+                            <span className="text-sm text-gray-700">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {requireSkywalk && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Area filter disabled when skywalk is required
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
