@@ -296,19 +296,32 @@ export function UnifiedAlertModal({
                     </div>
                   </label>
                   {discordEnabled && isAuthenticated && (
-                    <div className="mt-2 ml-7 space-y-2">
+                    <div className="mt-2 ml-7 space-y-3">
                       {editingAlert?.discordWatcherId && !discordWebhook ? (
                         <p className="text-sm text-green-600">
                           ✓ Discord webhook configured
                         </p>
                       ) : (
-                        <input
-                          type="url"
-                          value={discordWebhook}
-                          onChange={(e) => setDiscordWebhook(e.target.value)}
-                          className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
-                          placeholder="https://discord.com/api/webhooks/..."
-                        />
+                        <div>
+                          <input
+                            type="url"
+                            value={discordWebhook}
+                            onChange={(e) => setDiscordWebhook(e.target.value)}
+                            className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
+                            placeholder="https://discord.com/api/webhooks/..."
+                          />
+                          <details className="mt-1">
+                            <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                              How to get a webhook URL
+                            </summary>
+                            <div className="mt-1 p-2 bg-blue-50 rounded text-xs text-gray-700 space-y-1">
+                              <p>1. Open your Discord server</p>
+                              <p>2. Go to <strong>Server Settings</strong> → <strong>Integrations</strong></p>
+                              <p>3. Click <strong>Webhooks</strong> → <strong>New Webhook</strong></p>
+                              <p>4. Choose a channel and click <strong>Copy Webhook URL</strong></p>
+                            </div>
+                          </details>
+                        </div>
                       )}
                       <div>
                         <input
@@ -318,9 +331,19 @@ export function UnifiedAlertModal({
                           className="w-[calc(100%-1.75rem)] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gencon-blue text-gray-900 placeholder-gray-400 text-sm"
                           placeholder="@mention (optional) e.g., <@123456789>"
                         />
-                        <p className="text-xs text-gray-500 mt-1">
-                          User: &lt;@USER_ID&gt; | Role: &lt;@&amp;ROLE_ID&gt;
-                        </p>
+                        <details className="mt-1">
+                          <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                            How to get a user or role ID
+                          </summary>
+                          <div className="mt-1 p-2 bg-blue-50 rounded text-xs text-gray-700 space-y-1">
+                            <p>1. In Discord, go to <strong>User Settings</strong> → <strong>Advanced</strong></p>
+                            <p>2. Enable <strong>Developer Mode</strong></p>
+                            <p>3. Right-click a user or role → <strong>Copy ID</strong></p>
+                            <p className="pt-1 border-t border-blue-200">
+                              <strong>Format:</strong> User: <code className="bg-blue-100 px-1 rounded">&lt;@ID&gt;</code> | Role: <code className="bg-blue-100 px-1 rounded">&lt;@&amp;ID&gt;</code>
+                            </p>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   )}
