@@ -188,6 +188,7 @@ export interface RoomFilters {
   maxDistance?: number
   maxPrice?: number
   skywalkOnly?: boolean
+  downtownOnly?: boolean
   hotelName?: string
   roomType?: string
   checkIn?: string
@@ -205,6 +206,7 @@ export interface LocalAlert {
   maxPrice?: number
   maxDistance?: number
   requireSkywalk?: boolean
+  requireDowntown?: boolean // Only match downtown hotels
   minNightsAvailable?: number // Minimum nights that must be available
   createdAt: string
   enabled: boolean

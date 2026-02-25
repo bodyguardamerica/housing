@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const checkOut = searchParams.get('check_out')
   const sortBy = searchParams.get('sort_by') || 'distance'
   const sortDir = searchParams.get('sort_dir') || 'asc'
+  const downtownOnly = searchParams.get('downtown_only') === 'true'
 
   try {
     // Fetch from the view
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
     }
     if (skywalkOnly) {
       query = query.eq('has_skywalk', true)
+    }
+    if (downtownOnly) {
+      query = query.eq('area', 'downtown')
     }
     if (hotelName) {
       query = query.ilike('hotel_name', `%${hotelName}%`)
@@ -78,6 +82,9 @@ export async function GET(request: NextRequest) {
       }
       if (skywalkOnly) {
         hotelsQuery = hotelsQuery.eq('skywalk_manual', true)
+      }
+      if (downtownOnly) {
+        hotelsQuery = hotelsQuery.eq('area', 'downtown')
       }
       if (hotelName) {
         hotelsQuery = hotelsQuery.ilike('name', `%${hotelName}%`)

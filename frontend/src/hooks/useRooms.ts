@@ -23,6 +23,9 @@ export function useRooms(filters: RoomFilters = {}) {
       if (filters.skywalkOnly) {
         params.set('skywalk_only', 'true')
       }
+      if (filters.downtownOnly) {
+        params.set('downtown_only', 'true')
+      }
       if (filters.hotelName) {
         params.set('hotel_name', filters.hotelName)
       }

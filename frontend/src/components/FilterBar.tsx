@@ -26,6 +26,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
     filters.maxDistance !== undefined ||
     filters.maxPrice !== undefined ||
     filters.skywalkOnly ||
+    filters.downtownOnly ||
     filters.hotelName ||
     filters.roomType ||
     filters.showSoldOut
@@ -157,6 +158,23 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
               className="text-sm font-medium text-gray-700"
             >
               Skywalk connected only
+            </label>
+          </div>
+
+          {/* Downtown Toggle */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="downtown-only"
+              checked={filters.downtownOnly ?? false}
+              onChange={(e) => updateFilter('downtownOnly', e.target.checked)}
+              className="w-4 h-4 text-gencon-blue border-gray-300 rounded focus:ring-gencon-blue"
+            />
+            <label
+              htmlFor="downtown-only"
+              className="text-sm font-medium text-gray-700"
+            >
+              Downtown only
             </label>
           </div>
 

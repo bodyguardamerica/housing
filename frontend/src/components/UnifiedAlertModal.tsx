@@ -47,6 +47,7 @@ export function UnifiedAlertModal({
   const [maxPrice, setMaxPrice] = useState('')
   const [maxDistance, setMaxDistance] = useState('')
   const [requireSkywalk, setRequireSkywalk] = useState(false)
+  const [requireDowntown, setRequireDowntown] = useState(false)
 
   // State
   const [loading, setLoading] = useState(false)
@@ -60,6 +61,7 @@ export function UnifiedAlertModal({
       setMaxPrice(editingAlert?.maxPrice?.toString() || '')
       setMaxDistance(editingAlert?.maxDistance?.toString() || '')
       setRequireSkywalk(editingAlert?.requireSkywalk || false)
+      setRequireDowntown(editingAlert?.requireDowntown || false)
       setSoundEnabled(editingAlert?.soundEnabled ?? true)
       setFullScreenEnabled(editingAlert?.fullScreenEnabled ?? true)
       setVisualEnabled(true)
@@ -87,7 +89,7 @@ export function UnifiedAlertModal({
       return
     }
 
-    const hasAnyCriteria = hotelName || maxPrice || maxDistance || requireSkywalk
+    const hasAnyCriteria = hotelName || maxPrice || maxDistance || requireSkywalk || requireDowntown
     if (!hasAnyCriteria) {
       setError('Please set at least one filter criteria')
       return
@@ -159,6 +161,7 @@ export function UnifiedAlertModal({
         maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
         maxDistance: maxDistance ? parseFloat(maxDistance) : undefined,
         requireSkywalk,
+        requireDowntown,
         enabled: true,
         soundEnabled,
         fullScreenEnabled,
@@ -181,6 +184,7 @@ export function UnifiedAlertModal({
     setMaxPrice('')
     setMaxDistance('')
     setRequireSkywalk(false)
+    setRequireDowntown(false)
     setSoundEnabled(true)
     setFullScreenEnabled(true)
     setVisualEnabled(true)
@@ -367,6 +371,16 @@ export function UnifiedAlertModal({
                     className="w-4 h-4 text-gencon-blue border-gray-300 rounded"
                   />
                   <span className="text-sm text-gray-700">Require skywalk access</span>
+                </label>
+
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireDowntown}
+                    onChange={(e) => setRequireDowntown(e.target.checked)}
+                    className="w-4 h-4 text-gencon-blue border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-gray-700">Downtown hotels only</span>
                 </label>
               </div>
             </div>
