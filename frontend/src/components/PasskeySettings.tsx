@@ -9,18 +9,49 @@ interface PasskeySettingsProps {
   isSyncing?: boolean
 }
 
+// Validate Passkey URL format
+function validatePasskeyUrl(url: string): { valid: boolean; error?: string } {
+  if (!url.trim()) {
+    return { valid: false, error: 'URL is required' }
+  }
+
+  // Must start with https://book.passkey.com/
+  if (!url.startsWith('https://book.passkey.com/')) {
+    return { valid: false, error: 'URL must start with https://book.passkey.com/' }
+  }
+
+  // Check for entry?token= pattern (the format from the user's example)
+  const entryTokenPattern = /^https:\/\/book\.passkey\.com\/entry\?token=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+  // Also allow reg/ pattern (older format)
+  const regPattern = /^https:\/\/book\.passkey\.com\/reg\//
+
+  if (entryTokenPattern.test(url) || regPattern.test(url)) {
+    return { valid: true }
+  }
+
+  return { valid: false, error: 'Invalid Passkey URL format. Should be https://book.passkey.com/entry?token=...' }
+}
+
 export function PasskeySettings({ passkeyUrl, onUrlChange, isSyncing }: PasskeySettingsProps) {
   const { isAuthenticated } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [tempUrl, setTempUrl] = useState(passkeyUrl)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   const handleSave = () => {
+    const validation = validatePasskeyUrl(tempUrl.trim())
+    if (!validation.valid) {
+      setValidationError(validation.error || 'Invalid URL')
+      return
+    }
+    setValidationError(null)
     onUrlChange(tempUrl.trim())
     setIsEditing(false)
   }
 
   const handleCancel = () => {
     setTempUrl(passkeyUrl)
+    setValidationError(null)
     setIsEditing(false)
   }
 
@@ -83,9 +114,16 @@ export function PasskeySettings({ passkeyUrl, onUrlChange, isSyncing }: PasskeyS
             <input
               type="url"
               value={tempUrl}
-              onChange={(e) => setTempUrl(e.target.value)}
-              placeholder="https://book.passkey.com/reg/..."
-              className="flex-1 px-3 py-2 text-sm border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white placeholder-gray-400"
+              onChange={(e) => {
+                setTempUrl(e.target.value)
+                setValidationError(null) // Clear error on change
+              }}
+              placeholder="https://book.passkey.com/entry?token=..."
+              className={`flex-1 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 text-gray-900 bg-white placeholder-gray-400 ${
+                validationError
+                  ? 'border-red-300 focus:ring-red-500'
+                  : 'border-blue-300 focus:ring-blue-500'
+              }`}
             />
             <button
               onClick={handleSave}
@@ -103,6 +141,9 @@ export function PasskeySettings({ passkeyUrl, onUrlChange, isSyncing }: PasskeyS
               </button>
             )}
           </div>
+          {validationError && (
+            <p className="mt-2 text-sm text-red-600">{validationError}</p>
+          )}
         </div>
       </div>
     </div>
