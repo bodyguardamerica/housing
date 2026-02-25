@@ -563,20 +563,29 @@ async def process_multi_night_result(
         if not nights:
             continue
 
-        # Count nights with availability
-        nights_available = sum(1 for n in nights if n["available"] > 0)
+        # Passkey returns very large numbers (9999, 10000) as placeholders
+        # when there's no real availability data. Treat these as "not available".
+        MAX_REASONABLE_AVAILABILITY = 500
+
+        def is_valid_availability(avail: int) -> bool:
+            return 0 < avail < MAX_REASONABLE_AVAILABILITY
+
+        # Count nights with VALID availability (not placeholder values)
+        nights_available = sum(1 for n in nights if is_valid_availability(n["available"]))
 
         # Partial availability = has some nights but not all requested nights
-        # (and at least one night with availability)
+        # (and at least one night with valid availability)
         is_partial = nights_available < total_nights_in_range and nights_available > 0
 
-        # For full availability, min_available must be > 0 for ALL nights in range
+        # For full availability, min_available must be valid for ALL nights in range
         # Since we only have data for nights that had rooms, if nights_available < total_nights_in_range,
         # then full-stay availability is 0
         if nights_available < total_nights_in_range:
             full_stay_available = 0
         else:
-            full_stay_available = min(n["available"] for n in nights)
+            # Only consider valid availability values when calculating min
+            valid_nights = [n["available"] for n in nights if is_valid_availability(n["available"])]
+            full_stay_available = min(valid_nights) if valid_nights else 0
 
         # Calculate rates based on nights we have data for
         total_rate = sum(n["rate"] for n in nights)
