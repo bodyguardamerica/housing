@@ -332,7 +332,7 @@ export function UnifiedAlertModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Max Total Price ($)
+                      Max Price/Night ($)
                     </label>
                     <input
                       type="number"

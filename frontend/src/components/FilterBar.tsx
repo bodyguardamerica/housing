@@ -94,7 +94,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           {/* Price Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Max Total Price ($)
+              Max Price/Night ($)
             </label>
             <input
               type="number"

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       query = query.lte('distance_from_icc', parseFloat(maxDistance))
     }
     if (maxPrice) {
-      query = query.lte('total_price', parseFloat(maxPrice))
+      query = query.lte('nightly_rate', parseFloat(maxPrice))
     }
     if (skywalkOnly) {
       query = query.eq('has_skywalk', true)
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     // Apply sorting
     const sortColumn = {
       distance: 'distance_from_icc',
-      price: 'total_price',
+      price: 'nightly_rate',
       hotel_name: 'hotel_name',
       available: 'available_count',
     }[sortBy] || 'distance_from_icc'

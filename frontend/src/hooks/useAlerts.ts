@@ -268,9 +268,9 @@ function roomMatchesAlert(room: RoomAvailability, alert: LocalAlert): boolean {
     if (!hotelName.includes(searchName)) return false
   }
 
-  // Max price filter
-  if (alert.maxPrice !== undefined && room.total_price !== null) {
-    if (room.total_price > alert.maxPrice) return false
+  // Max price per night filter
+  if (alert.maxPrice !== undefined && room.nightly_rate !== null) {
+    if (room.nightly_rate > alert.maxPrice) return false
   }
 
   // Max distance filter
