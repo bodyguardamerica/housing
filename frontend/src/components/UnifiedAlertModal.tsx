@@ -509,19 +509,19 @@ export function UnifiedAlertModal({
                   )}
                 </div>
 
-                {/* SMS Notification - only shown if user has permission */}
+                {/* SMS Notification - disabled (Twilio SMS not configured) */}
                 {phonePermissions?.sms_enabled && (
-                  <div>
-                    <label className="flex items-start space-x-3 cursor-pointer">
+                  <div className="opacity-50">
+                    <label className="flex items-start space-x-3 cursor-not-allowed">
                       <input
                         type="checkbox"
-                        checked={smsEnabled}
-                        onChange={(e) => setSmsEnabled(e.target.checked)}
-                        className="w-4 h-4 mt-0.5 text-gencon-blue border-gray-300 rounded"
+                        checked={false}
+                        disabled
+                        className="w-4 h-4 mt-0.5 text-gray-300 border-gray-300 rounded cursor-not-allowed"
                       />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">SMS Text Message</span>
-                        <p className="text-xs text-gray-500">Receive text alerts on your phone</p>
+                        <span className="text-sm font-medium text-gray-500">SMS Text Message</span>
+                        <p className="text-xs text-gray-400">Coming soon - not yet configured</p>
                       </div>
                     </label>
                   </div>
