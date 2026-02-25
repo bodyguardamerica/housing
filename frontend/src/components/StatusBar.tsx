@@ -44,12 +44,36 @@ export function StatusBar({
 }: StatusBarProps) {
   const [secondsAgo, setSecondsAgo] = useState(0)
 
+  // Parse the timestamp safely
+  const parseTimestamp = (ts: string | null): Date | null => {
+    if (!ts) return null
+    try {
+      // Handle various timestamp formats from Supabase
+      // Could be: "2024-02-25T10:00:00" or "2024-02-25T10:00:00.123456" or with +00:00
+      let normalized = ts
+      if (!ts.endsWith('Z') && !ts.includes('+')) {
+        normalized = ts + 'Z'
+      }
+      const date = new Date(normalized)
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date parsed from:', ts)
+        return null
+      }
+      return date
+    } catch {
+      console.error('Failed to parse timestamp:', ts)
+      return null
+    }
+  }
+
+  const lastScrapeDate = parseTimestamp(lastScrapeAt)
+
   useEffect(() => {
     const calculateSecondsAgo = () => {
-      if (!lastScrapeAt) return 999999
-      // Ensure UTC parsing - Supabase returns timestamps without Z suffix
-      const timestamp = lastScrapeAt.endsWith('Z') ? lastScrapeAt : lastScrapeAt + 'Z'
-      return Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
+      if (!lastScrapeDate) return 999999
+      const diff = Math.floor((Date.now() - lastScrapeDate.getTime()) / 1000)
+      return diff > 0 ? diff : 0
     }
 
     setSecondsAgo(calculateSecondsAgo())
@@ -60,15 +84,10 @@ export function StatusBar({
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [lastScrapeAt])
+  }, [lastScrapeDate])
 
   const freshnessStatus = getFreshnessStatus(secondsAgo)
   const freshnessColor = getFreshnessColor(freshnessStatus)
-
-  // Ensure UTC parsing - Supabase returns timestamps without Z suffix
-  const lastScrapeDate = lastScrapeAt
-    ? new Date(lastScrapeAt.endsWith('Z') ? lastScrapeAt : lastScrapeAt + 'Z')
-    : null
 
   return (
     <div className="bg-white shadow rounded-lg p-4 mb-6">
