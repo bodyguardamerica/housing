@@ -89,6 +89,7 @@ export default function DashboardPage() {
             max_price?: number
             max_distance?: number
             require_skywalk?: boolean
+            require_downtown?: boolean
             enabled?: boolean
             sound_enabled?: boolean
             full_screen_enabled?: boolean
@@ -101,6 +102,7 @@ export default function DashboardPage() {
             maxPrice: sa.max_price,
             maxDistance: sa.max_distance,
             requireSkywalk: sa.require_skywalk || false,
+            requireDowntown: sa.require_downtown || false,
             createdAt: sa.created_at,
             enabled: sa.enabled ?? true,
             soundEnabled: sa.sound_enabled ?? true,
@@ -109,7 +111,7 @@ export default function DashboardPage() {
           }))
 
           setAlerts(convertedAlerts)
-          console.log('Loaded', convertedAlerts.length, 'alerts from server')
+          console.log('Loaded alerts from server:', JSON.stringify(convertedAlerts, null, 2))
         }
       } catch (error) {
         console.error('Error fetching alerts from server:', error)
@@ -122,6 +124,8 @@ export default function DashboardPage() {
   // Save alert to server (when authenticated)
   const saveAlertToServer = useCallback(async (alertData: Omit<LocalAlert, 'id' | 'createdAt'> & { id?: string }) => {
     if (!isAuthenticated || !session?.access_token) return null
+
+    console.log('Saving alert to server:', JSON.stringify(alertData, null, 2))
 
     try {
       const isUpdate = !!alertData.id
@@ -138,6 +142,7 @@ export default function DashboardPage() {
           max_price: alertData.maxPrice,
           max_distance: alertData.maxDistance,
           require_skywalk: alertData.requireSkywalk,
+          require_downtown: alertData.requireDowntown,
           enabled: alertData.enabled,
           sound_enabled: alertData.soundEnabled,
           full_screen_enabled: alertData.fullScreenEnabled,

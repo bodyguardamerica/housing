@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch alerts' }, { status: 500 })
   }
 
+  console.log('GET /api/alerts - Returning alerts:', JSON.stringify(alerts, null, 2))
   return NextResponse.json({ data: alerts })
 }
 
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+  console.log('POST /api/alerts - Body:', JSON.stringify(body, null, 2))
 
   // Validate required fields
   if (!body.name) {
@@ -81,6 +83,7 @@ export async function POST(request: NextRequest) {
       max_price: body.max_price || null,
       max_distance: body.max_distance || null,
       require_skywalk: body.require_skywalk || false,
+      require_downtown: body.require_downtown || false,
       min_nights_available: body.min_nights_available || null,
       enabled: body.enabled ?? true,
       sound_enabled: body.sound_enabled ?? true,
@@ -95,6 +98,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create alert' }, { status: 500 })
   }
 
+  console.log('POST /api/alerts - Created alert:', JSON.stringify(alert, null, 2))
   return NextResponse.json({ data: alert })
 }
 
@@ -128,6 +132,7 @@ export async function PUT(request: NextRequest) {
       max_price: body.max_price,
       max_distance: body.max_distance,
       require_skywalk: body.require_skywalk,
+      require_downtown: body.require_downtown,
       min_nights_available: body.min_nights_available,
       enabled: body.enabled,
       sound_enabled: body.sound_enabled,

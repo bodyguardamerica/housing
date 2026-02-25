@@ -70,11 +70,34 @@ export function UnifiedAlertModal({
       // Preserve Discord settings if alert already has a linked watcher
       setDiscordEnabled(!!editingAlert?.discordWatcherId)
       setDiscordWebhook('') // Webhook is stored server-side, don't expose
-      setDiscordMention('') // Mention is stored server-side
+      setDiscordMention('') // Will be fetched below if editing
       setError(null)
       setTestStatus('idle')
     }
   }, [isOpen, editingAlert])
+
+  // Fetch watcher details when editing an alert with a discordWatcherId
+  useEffect(() => {
+    if (isOpen && editingAlert?.discordWatcherId) {
+      const fetchWatcherDetails = async () => {
+        try {
+          const response = await fetch(`/api/watchers?ids=${editingAlert.discordWatcherId}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.data && data.data.length > 0) {
+              const watcher = data.data[0]
+              if (watcher.discord_mention) {
+                setDiscordMention(watcher.discord_mention)
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch watcher details:', err)
+        }
+      }
+      fetchWatcherDetails()
+    }
+  }, [isOpen, editingAlert?.discordWatcherId])
 
   if (!isOpen) return null
 

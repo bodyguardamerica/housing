@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
         id,
         email,
         discord_webhook_url,
+        discord_mention,
         hotel_id,
         max_price,
         max_distance,
