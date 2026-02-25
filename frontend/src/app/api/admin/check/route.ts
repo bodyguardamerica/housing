@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   // Verify the user
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) {
+  if (authError || !user || !user.email) {
     return NextResponse.json({ isAdmin: false }, { status: 200 })
   }
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       .from('admin_users')
       .select('id, email')
       .eq('email', user.email)
-      .single()
+      .single() as { data: { id: string; email: string } | null; error: unknown }
 
     if (error || !adminUser) {
       return NextResponse.json({ isAdmin: false, email: user.email }, { status: 200 })

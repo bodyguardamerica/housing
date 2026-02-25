@@ -35,7 +35,11 @@ export async function GET(request: NextRequest) {
 
   try {
     // Reset daily counters if needed (ignore errors if function doesn't exist)
-    await supabase.rpc('reset_daily_phone_counters').catch(() => {})
+    try {
+      await supabase.rpc('reset_daily_phone_counters')
+    } catch {
+      // Function may not exist yet
+    }
 
     // Fetch user's phone permissions
     const { data: permissions, error } = await supabase
