@@ -26,7 +26,7 @@ async function verifyAdmin(supabase: ReturnType<typeof createClient>) {
     .from('admin_users')
     .select('id')
     .eq('email', user.email)
-    .single()
+    .single() as { data: { id: string } | null }
 
   return adminUser ? { user, adminId: adminUser.id } : null
 }
