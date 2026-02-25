@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // POST - Seed the initial admin from ADMIN_EMAIL environment variable
 // This is called once to set up the initial admin user
@@ -13,14 +16,14 @@ export async function POST() {
     )
   }
 
-  const supabase = createServerClient()
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   // Check if admin already exists
   const { data: existing } = await supabase
     .from('admin_users')
     .select('id')
     .eq('email', adminEmail)
-    .single()
+    .single() as { data: { id: string } | null }
 
   if (existing) {
     return NextResponse.json({
@@ -30,11 +33,9 @@ export async function POST() {
   }
 
   // Insert admin
-  const { data: admin, error } = await supabase
+  const { error } = await supabase
     .from('admin_users')
-    .insert({ email: adminEmail })
-    .select()
-    .single()
+    .insert({ email: adminEmail } as Record<string, unknown>)
 
   if (error) {
     console.error('Error seeding admin:', error)
@@ -46,6 +47,6 @@ export async function POST() {
 
   return NextResponse.json({
     message: 'Admin seeded successfully',
-    admin
+    email: adminEmail
   })
 }
