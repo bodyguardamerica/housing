@@ -28,7 +28,12 @@ function formatTimeAgo(secondsAgo: number): string {
 }
 
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'America/Chicago', // CST/CDT
+  })
 }
 
 export function StatusBar({
@@ -42,7 +47,9 @@ export function StatusBar({
   useEffect(() => {
     const calculateSecondsAgo = () => {
       if (!lastScrapeAt) return 999999
-      return Math.floor((Date.now() - new Date(lastScrapeAt).getTime()) / 1000)
+      // Ensure UTC parsing - Supabase returns timestamps without Z suffix
+      const timestamp = lastScrapeAt.endsWith('Z') ? lastScrapeAt : lastScrapeAt + 'Z'
+      return Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
     }
 
     setSecondsAgo(calculateSecondsAgo())
@@ -58,7 +65,10 @@ export function StatusBar({
   const freshnessStatus = getFreshnessStatus(secondsAgo)
   const freshnessColor = getFreshnessColor(freshnessStatus)
 
-  const lastScrapeDate = lastScrapeAt ? new Date(lastScrapeAt) : null
+  // Ensure UTC parsing - Supabase returns timestamps without Z suffix
+  const lastScrapeDate = lastScrapeAt
+    ? new Date(lastScrapeAt.endsWith('Z') ? lastScrapeAt : lastScrapeAt + 'Z')
+    : null
 
   return (
     <div className="bg-white shadow rounded-lg p-4 mb-6">
