@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { AuthButton } from './AuthButton'
+import { useAdmin } from '@/hooks/useAdmin'
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { isAdmin } = useAdmin()
 
   return (
     <header className="bg-gencon-blue text-white shadow-lg">
@@ -46,6 +48,15 @@ export function Header() {
                     >
                       History
                     </a>
+                    {isAdmin && (
+                      <a
+                        href="/admin"
+                        className="block px-4 py-3 text-gray-800 hover:bg-gray-100 transition-colors border-t border-gray-200"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        Admin
+                      </a>
+                    )}
                   </div>
                 </>
               )}
