@@ -74,15 +74,15 @@ async def run_scrape():
         if result is None:
             raise Exception("Scrape returned no results")
 
-        # Check for duplicate data
-        hotel_ids = {}
-        for hotel in result.hotels:
-            hotel_id = await db.get_hotel_id_by_passkey_id(hotel.id, year)
-            if hotel_id:
-                hotel_ids[hotel.id] = hotel_id
+        # Get all hotel IDs in ONE query (optimized)
+        import time
+        cache_start = time.perf_counter()
+        hotel_cache = db.get_all_hotel_ids(year)
+        hotel_ids = {h.id: hotel_cache.get(h.id) for h in result.hotels if h.id in hotel_cache}
+        cache_ms = int((time.perf_counter() - cache_start) * 1000)
+        logger.info(f"Hotel cache loaded in {cache_ms}ms ({len(hotel_cache)} hotels)")
 
         # Compute current result hash (with timing)
-        import time
         hash_start = time.perf_counter()
         current_hash = compute_multi_night_hash(result, hotel_ids)
         previous_hash = await db.get_last_scrape_hash(year)
@@ -105,7 +105,7 @@ async def run_scrape():
 
         # Process and store results (with timing)
         hotels_found, rooms_found = await process_multi_night_result(
-            db, result, scrape_run_id, year, timing=timing
+            db, result, scrape_run_id, year, timing=timing, hotel_cache=hotel_cache
         )
 
         duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)

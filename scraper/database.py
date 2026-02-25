@@ -66,6 +66,112 @@ class Database:
         response.raise_for_status()
         return response.json()
 
+    def get_all_hotel_ids(self, year: int) -> dict[int, str]:
+        """
+        Get all hotel IDs for a year in a single query.
+        Returns dict mapping passkey_hotel_id -> database UUID.
+        """
+        result = self._get("hotels", {
+            "year": f"eq.{year}",
+            "select": "id,passkey_hotel_id,name",
+        })
+
+        hotel_map = {}
+        for h in result:
+            if h["passkey_hotel_id"] and h["passkey_hotel_id"] > 0:
+                hotel_map[h["passkey_hotel_id"]] = h["id"]
+            # Also map by name for fallback (hotels with placeholder IDs)
+            hotel_map[f"name:{h['name']}"] = h["id"]
+
+        return hotel_map
+
+    def ensure_hotels_exist(self, hotels: list[HotelUpsert], hotel_cache: dict[int, str]) -> dict[int, str]:
+        """
+        Ensure all hotels exist in database, using cached IDs where possible.
+        Only inserts truly new hotels. Returns updated hotel_id map.
+
+        Args:
+            hotels: List of HotelUpsert objects from scrape
+            hotel_cache: Existing cache from get_all_hotel_ids()
+
+        Returns:
+            Dict mapping passkey_hotel_id -> database UUID
+        """
+        result_map = {}
+        hotels_to_insert = []
+
+        for hotel in hotels:
+            # Check cache by passkey_id first
+            if hotel.passkey_hotel_id > 0 and hotel.passkey_hotel_id in hotel_cache:
+                result_map[hotel.passkey_hotel_id] = hotel_cache[hotel.passkey_hotel_id]
+                continue
+
+            # Check cache by name (for placeholder IDs)
+            name_key = f"name:{hotel.name}"
+            if name_key in hotel_cache:
+                result_map[hotel.passkey_hotel_id] = hotel_cache[name_key]
+                continue
+
+            # Truly new hotel - queue for insert
+            hotels_to_insert.append(hotel)
+
+        # Batch insert new hotels
+        if hotels_to_insert:
+            logger.info(f"Inserting {len(hotels_to_insert)} new hotels")
+            insert_data = [{
+                "passkey_hotel_id": h.passkey_hotel_id,
+                "name": h.name,
+                "distance_from_icc": h.distance_from_icc,
+                "distance_unit": h.distance_unit,
+                "has_skywalk": h.has_skywalk,
+                "year": h.year,
+            } for h in hotels_to_insert]
+
+            try:
+                inserted = self._post_batch("hotels", insert_data)
+                for i, h in enumerate(hotels_to_insert):
+                    result_map[h.passkey_hotel_id] = inserted[i]["id"]
+            except Exception as e:
+                # Fallback to individual inserts on conflict
+                logger.warning(f"Batch insert failed ({e}), using individual inserts")
+                for h in hotels_to_insert:
+                    hotel_id = self.upsert_hotel_simple(h)
+                    result_map[h.passkey_hotel_id] = hotel_id
+
+        return result_map
+
+    def upsert_hotel_simple(self, data: HotelUpsert) -> str:
+        """Simple hotel upsert without update - just ensure it exists."""
+        # Check by passkey_id
+        if data.passkey_hotel_id > 0:
+            existing = self._get("hotels", {
+                "passkey_hotel_id": f"eq.{data.passkey_hotel_id}",
+                "year": f"eq.{data.year}",
+                "select": "id",
+            })
+            if existing:
+                return existing[0]["id"]
+
+        # Check by name
+        existing = self._get("hotels", {
+            "name": f"eq.{data.name}",
+            "year": f"eq.{data.year}",
+            "select": "id",
+        })
+        if existing:
+            return existing[0]["id"]
+
+        # Insert new
+        result = self._post("hotels", {
+            "passkey_hotel_id": data.passkey_hotel_id,
+            "name": data.name,
+            "distance_from_icc": data.distance_from_icc,
+            "distance_unit": data.distance_unit,
+            "has_skywalk": data.has_skywalk,
+            "year": data.year,
+        })
+        return result[0]["id"]
+
     async def trigger_notifications(self, snapshot_id: str, snapshot_data: dict):
         """
         Call the match-watchers edge function to trigger notifications for a new snapshot.
@@ -395,7 +501,7 @@ class Database:
     async def get_latest_room_keys(self, year: int) -> dict[tuple[str, str], dict]:
         """
         Get all (hotel_id, room_type) combinations from the latest successful scrape.
-        Returns a dict mapping (hotel_id, room_type) -> snapshot data.
+        Returns a dict mapping (hotel_id, room_type) -> snapshot data including availability.
         """
         # Get the latest successful scrape with changes
         result = self._get("scrape_runs", {
@@ -412,10 +518,10 @@ class Database:
 
         scrape_id = result[0]["id"]
 
-        # Get all snapshots from that scrape
+        # Get all snapshots from that scrape (include available_count for change detection)
         snapshots = self._get("room_snapshots", {
             "scrape_run_id": f"eq.{scrape_id}",
-            "select": "hotel_id,room_type,check_in,check_out,nightly_rate,raw_block_data",
+            "select": "hotel_id,room_type,check_in,check_out,nightly_rate,available_count,raw_block_data",
         })
 
         room_keys = {}
@@ -425,6 +531,7 @@ class Database:
                 "check_in": s["check_in"],
                 "check_out": s["check_out"],
                 "nightly_rate": s["nightly_rate"],
+                "available_count": s.get("available_count", 0),
                 "raw_block_data": s.get("raw_block_data", {}),
             }
 
@@ -492,6 +599,7 @@ async def process_multi_night_result(
     scrape_run_id: str,
     year: int,
     timing: Optional[ScrapeTiming] = None,
+    hotel_cache: Optional[dict[int, str]] = None,
 ) -> tuple[int, int]:
     """
     Process a multi-night scrape result and store it in the database.
@@ -500,6 +608,7 @@ async def process_multi_night_result(
     Also marks previously-available rooms as sold out if they're no longer in results.
 
     If timing is provided, populates it with detailed timing metrics.
+    If hotel_cache is provided, uses it instead of individual lookups.
     """
     from datetime import timedelta
 
@@ -516,20 +625,36 @@ async def process_multi_night_result(
     if timing:
         timing.get_previous_keys_ms = int((time.perf_counter() - prev_keys_start) * 1000)
 
-    # First, upsert all hotels to ensure we have their IDs (with timing)
+    # Ensure all hotels exist in database (optimized with cache)
     upsert_hotels_start = time.perf_counter()
-    hotel_id_map: dict[int, str] = {}  # passkey_id -> db UUID
-    for hotel in result.hotels:
-        hotel_id = await db.upsert_hotel(HotelUpsert(
-            passkey_hotel_id=hotel.id,
-            name=hotel.name,
-            distance_from_icc=hotel.distance_from_event,
-            distance_unit=hotel.distance_unit,
-            has_skywalk=hotel.has_skywalk,
-            year=year,
-        ))
-        hotel_id_map[hotel.id] = hotel_id
-        hotels_processed.add(hotel.id)
+
+    hotel_upserts = [HotelUpsert(
+        passkey_hotel_id=hotel.id,
+        name=hotel.name,
+        distance_from_icc=hotel.distance_from_event,
+        distance_unit=hotel.distance_unit,
+        has_skywalk=hotel.has_skywalk,
+        year=year,
+    ) for hotel in result.hotels]
+
+    if hotel_cache:
+        # Use optimized batch method with cache
+        hotel_id_map = db.ensure_hotels_exist(hotel_upserts, hotel_cache)
+    else:
+        # Fallback to individual upserts (slower)
+        hotel_id_map = {}
+        for hotel in result.hotels:
+            hotel_id = await db.upsert_hotel(HotelUpsert(
+                passkey_hotel_id=hotel.id,
+                name=hotel.name,
+                distance_from_icc=hotel.distance_from_event,
+                distance_unit=hotel.distance_unit,
+                has_skywalk=hotel.has_skywalk,
+                year=year,
+            ))
+            hotel_id_map[hotel.id] = hotel_id
+
+    hotels_processed = set(hotel_id_map.keys())
     if timing:
         timing.upsert_hotels_ms = int((time.perf_counter() - upsert_hotels_start) * 1000)
 
@@ -610,10 +735,21 @@ async def process_multi_night_result(
         )
         snapshots_to_insert.append(snapshot)
 
-        # Track if this snapshot needs a notification (has availability or partial)
-        has_availability = full_stay_available > 0
-        has_partial = is_partial and nights_available > 0
-        if has_availability or has_partial:
+        # Check if availability has CHANGED from previous scrape
+        prev_data = previous_room_keys.get((db_hotel_id, room_type))
+        prev_available = prev_data.get("available_count", 0) if prev_data else 0
+        prev_nights = prev_data.get("raw_block_data", {}).get("nights_available", 0) if prev_data else 0
+
+        # Only notify if:
+        # 1. New availability appeared (was 0, now > 0)
+        # 2. Or partial availability changed (different nights available)
+        availability_changed = (
+            (prev_available == 0 and full_stay_available > 0) or  # Newly available
+            (prev_nights == 0 and nights_available > 0) or  # Newly partial
+            (prev_nights != nights_available and nights_available > 0)  # Different partial nights
+        )
+
+        if availability_changed:
             notification_indices.append(len(snapshots_to_insert) - 1)
 
         rooms_found += 1
