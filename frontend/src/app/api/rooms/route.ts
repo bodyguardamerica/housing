@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
           has_skywalk: hotel.skywalk_manual || false,
           latitude: hotel.latitude,
           longitude: hotel.longitude,
+          area: hotel.area,
           room_type: 'No rooms available',
           room_description: null,
           available_count: 0,

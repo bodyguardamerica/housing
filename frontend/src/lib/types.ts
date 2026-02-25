@@ -51,6 +51,7 @@ export interface Hotel {
   skywalk_manual: boolean
   year: number
   amenities: Record<string, unknown>
+  area: string | null // downtown, suburbs, airport, etc.
   created_at: string
   updated_at: string
 }
@@ -98,6 +99,7 @@ export interface RoomAvailability {
   has_skywalk: boolean
   latitude: number | null
   longitude: number | null
+  area: string | null // downtown, suburbs, airport, etc.
   room_type: string
   room_description: string | null
   available_count: number
