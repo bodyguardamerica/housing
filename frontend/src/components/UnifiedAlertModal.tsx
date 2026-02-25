@@ -315,10 +315,12 @@ export function UnifiedAlertModal({
                               How to get a webhook URL
                             </summary>
                             <div className="mt-1 p-2 bg-blue-50 rounded text-xs text-gray-700 space-y-1">
-                              <p>1. Open your Discord server</p>
-                              <p>2. Go to <strong>Server Settings</strong> → <strong>Integrations</strong></p>
-                              <p>3. Click <strong>Webhooks</strong> → <strong>New Webhook</strong></p>
-                              <p>4. Choose a channel and click <strong>Copy Webhook URL</strong></p>
+                              <p className="font-medium">First, enable Developer Mode:</p>
+                              <p>User Settings → Advanced → Developer Mode</p>
+                              <p className="font-medium pt-1">Then create webhook:</p>
+                              <p>1. Right-click the channel → <strong>Edit Channel</strong></p>
+                              <p>2. Go to <strong>Integrations</strong> → <strong>Webhooks</strong></p>
+                              <p>3. Click <strong>New Webhook</strong> → <strong>Copy Webhook URL</strong></p>
                             </div>
                           </details>
                         </div>
@@ -336,9 +338,10 @@ export function UnifiedAlertModal({
                             How to get a user or role ID
                           </summary>
                           <div className="mt-1 p-2 bg-blue-50 rounded text-xs text-gray-700 space-y-1">
-                            <p>1. In Discord, go to <strong>User Settings</strong> → <strong>Advanced</strong></p>
-                            <p>2. Enable <strong>Developer Mode</strong></p>
-                            <p>3. Right-click a user or role → <strong>Copy ID</strong></p>
+                            <p className="font-medium">Enable Developer Mode first:</p>
+                            <p>User Settings → Advanced → Developer Mode</p>
+                            <p className="font-medium pt-1">Then copy ID:</p>
+                            <p>Right-click a user or role → <strong>Copy ID</strong></p>
                             <p className="pt-1 border-t border-blue-200">
                               <strong>Format:</strong> User: <code className="bg-blue-100 px-1 rounded">&lt;@ID&gt;</code> | Role: <code className="bg-blue-100 px-1 rounded">&lt;@&amp;ID&gt;</code>
                             </p>
