@@ -102,6 +102,25 @@ export function UnifiedAlertModal({
     }
   }, [isOpen, editingAlert?.discordWatcherId])
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (areasDropdownRef.current && !areasDropdownRef.current.contains(event.target as Node)) {
+        setAreasDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const toggleArea = (area: string) => {
+    setSelectedAreas(prev =>
+      prev.includes(area)
+        ? prev.filter(a => a !== area)
+        : [...prev, area]
+    )
+  }
+
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -223,25 +242,6 @@ export function UnifiedAlertModal({
     setDiscordWebhook('')
     setDiscordMention('')
     setTestStatus('idle')
-  }
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (areasDropdownRef.current && !areasDropdownRef.current.contains(event.target as Node)) {
-        setAreasDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const toggleArea = (area: string) => {
-    setSelectedAreas(prev =>
-      prev.includes(area)
-        ? prev.filter(a => a !== area)
-        : [...prev, area]
-    )
   }
 
   const sendDiscordTest = async () => {
