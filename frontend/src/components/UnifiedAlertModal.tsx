@@ -2,6 +2,29 @@
 
 import { useState, useEffect } from 'react'
 import type { LocalAlert } from '@/lib/types'
+import { useAuth } from '@/hooks/useAuth'
+
+// Helper to get the right storage based on auth status
+// Anonymous users use sessionStorage (cleared on browser close)
+// Authenticated users use localStorage (persists)
+function getWatcherStorage(isAuthenticated: boolean): Storage {
+  if (typeof window === 'undefined') return localStorage
+  return isAuthenticated ? localStorage : sessionStorage
+}
+
+function getWatcherTokens(isAuthenticated: boolean): Record<string, string> {
+  const storage = getWatcherStorage(isAuthenticated)
+  try {
+    return JSON.parse(storage.getItem('watcher_tokens') || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function setWatcherTokens(isAuthenticated: boolean, tokens: Record<string, string>) {
+  const storage = getWatcherStorage(isAuthenticated)
+  storage.setItem('watcher_tokens', JSON.stringify(tokens))
+}
 
 interface UnifiedAlertModalProps {
   isOpen: boolean
@@ -16,6 +39,8 @@ export function UnifiedAlertModal({
   onSaveLocal,
   editingAlert,
 }: UnifiedAlertModalProps) {
+  const { isAuthenticated } = useAuth()
+
   // Notification types
   const [visualEnabled, setVisualEnabled] = useState(true)
   const [fullScreenEnabled, setFullScreenEnabled] = useState(true)
@@ -91,7 +116,7 @@ export function UnifiedAlertModal({
       // If user disabled Discord on an existing alert, delete the watcher
       if (!discordEnabled && editingAlert?.discordWatcherId) {
         try {
-          const tokens = JSON.parse(localStorage.getItem('watcher_tokens') || '{}')
+          const tokens = getWatcherTokens(isAuthenticated)
           const token = tokens[editingAlert.discordWatcherId]
           if (token) {
             await fetch(`/api/watchers?id=${editingAlert.discordWatcherId}`, {
@@ -99,7 +124,7 @@ export function UnifiedAlertModal({
               headers: { Authorization: `Bearer ${token}` },
             })
             delete tokens[editingAlert.discordWatcherId]
-            localStorage.setItem('watcher_tokens', JSON.stringify(tokens))
+            setWatcherTokens(isAuthenticated, tokens)
           }
         } catch (err) {
           console.error('Failed to delete Discord watcher:', err)
@@ -128,10 +153,10 @@ export function UnifiedAlertModal({
 
         const data = await response.json()
         discordWatcherId = data.id
-        // Store manage token
-        const existingTokens = JSON.parse(localStorage.getItem('watcher_tokens') || '{}')
+        // Store manage token (sessionStorage for anonymous, localStorage for authenticated)
+        const existingTokens = getWatcherTokens(isAuthenticated)
         existingTokens[data.id] = data.manage_token
-        localStorage.setItem('watcher_tokens', JSON.stringify(existingTokens))
+        setWatcherTokens(isAuthenticated, existingTokens)
       }
 
       // Create local alert (always create so Discord can be linked)

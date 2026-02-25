@@ -2,8 +2,36 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { LocalAlert, AlertMatch, AlertsState, RoomAvailability } from '@/lib/types'
+import { useAuth } from '@/hooks/useAuth'
 
 const STORAGE_KEY = 'gencon-hotels-alerts'
+
+// Helper to get watcher tokens from the right storage
+function getWatcherTokens(isAuthenticated: boolean): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+  const storage = isAuthenticated ? localStorage : sessionStorage
+  try {
+    return JSON.parse(storage.getItem('watcher_tokens') || '{}')
+  } catch {
+    return {}
+  }
+}
+
+// Clean up orphaned watchers (alerts with discordWatcherId but no token)
+async function cleanupOrphanedWatchers(alerts: LocalAlert[], isAuthenticated: boolean): Promise<string[]> {
+  const tokens = getWatcherTokens(isAuthenticated)
+  const orphanedAlertIds: string[] = []
+
+  for (const alert of alerts) {
+    if (alert.discordWatcherId && !tokens[alert.discordWatcherId]) {
+      // This alert has a discordWatcherId but no token - it's orphaned
+      // The watcher will eventually expire, but we should clear the reference
+      orphanedAlertIds.push(alert.id)
+    }
+  }
+
+  return orphanedAlertIds
+}
 
 const defaultState: AlertsState = {
   alerts: [],
@@ -285,6 +313,7 @@ function roomMatchesAlert(room: RoomAvailability, alert: LocalAlert): boolean {
 }
 
 export function useAlerts() {
+  const { isAuthenticated } = useAuth()
   const [state, setState] = useState<AlertsState>(defaultState)
   const [isLoaded, setIsLoaded] = useState(false)
   const [alarmActive, setAlarmActive] = useState(false)
@@ -305,6 +334,31 @@ export function useAlerts() {
     // Check notification permission
     setNotificationPermission(getNotificationPermission())
   }, [])
+
+  // Clean up orphaned Discord watchers on mount
+  // For anonymous users, sessionStorage is cleared on browser close, so any
+  // alerts with discordWatcherId but no token are orphaned
+  useEffect(() => {
+    if (!isLoaded) return
+
+    const cleanup = async () => {
+      const orphanedIds = await cleanupOrphanedWatchers(state.alerts, isAuthenticated)
+      if (orphanedIds.length > 0) {
+        // Remove discordWatcherId from orphaned alerts
+        setState(prev => ({
+          ...prev,
+          alerts: prev.alerts.map(alert =>
+            orphanedIds.includes(alert.id)
+              ? { ...alert, discordWatcherId: undefined }
+              : alert
+          ),
+        }))
+        console.log(`Cleaned up ${orphanedIds.length} orphaned Discord watcher reference(s)`)
+      }
+    }
+
+    cleanup()
+  }, [isLoaded, isAuthenticated])
 
   // Request notification permission
   const requestNotifications = useCallback(async () => {
