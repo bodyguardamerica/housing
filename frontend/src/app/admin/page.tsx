@@ -1,13 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAdmin } from '@/hooks/useAdmin'
 import { useAuth } from '@/hooks/useAuth'
 
+interface AuthUser {
+  id: string
+  email: string
+  created_at: string
+}
+
 export default function AdminPage() {
   const router = useRouter()
-  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { isAuthenticated, session, loading: authLoading } = useAuth()
   const {
     isAdmin,
     loading: adminLoading,
@@ -29,6 +35,12 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // User search state
+  const [users, setUsers] = useState<AuthUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [showUserDropdown, setShowUserDropdown] = useState(false)
+
   // Redirect unauthenticated users only (admins and non-admins can stay to see seed button)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -43,10 +55,51 @@ export default function AdminPage() {
     }
   }, [isAdmin, fetchPermissions])
 
+  // Fetch users when modal opens
+  const fetchUsers = useCallback(async () => {
+    if (!session?.access_token) return
+
+    setUsersLoading(true)
+    try {
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setUsers(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err)
+    } finally {
+      setUsersLoading(false)
+    }
+  }, [session?.access_token])
+
+  useEffect(() => {
+    if (showGrantModal && isAdmin) {
+      fetchUsers()
+    }
+  }, [showGrantModal, isAdmin, fetchUsers])
+
+  // Filter users based on search
+  const filteredUsers = users.filter(user =>
+    user.email?.toLowerCase().includes(userSearch.toLowerCase())
+  )
+
+  // Select a user from the dropdown
+  const selectUser = (user: AuthUser) => {
+    setGrantUserId(user.id)
+    setGrantEmail(user.email || '')
+    setUserSearch(user.email || '')
+    setShowUserDropdown(false)
+  }
+
   // Handle grant permission
   const handleGrant = async () => {
-    if (!grantUserId && !grantEmail) {
-      setError('User ID or email is required')
+    if (!grantUserId) {
+      setError('Please select a user')
       return
     }
 
@@ -64,11 +117,22 @@ export default function AdminPage() {
       setShowGrantModal(false)
       setGrantEmail('')
       setGrantUserId('')
+      setUserSearch('')
       setSuccess('Permission granted!')
       setTimeout(() => setSuccess(null), 3000)
     } else {
       setError(result.error || 'Failed to grant permission')
     }
+  }
+
+  // Reset modal state when closing
+  const closeGrantModal = () => {
+    setShowGrantModal(false)
+    setGrantEmail('')
+    setGrantUserId('')
+    setUserSearch('')
+    setShowUserDropdown(false)
+    setError(null)
   }
 
   // Handle toggle permission
@@ -259,38 +323,56 @@ export default function AdminPage() {
       {showGrantModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black opacity-50" onClick={() => setShowGrantModal(false)}></div>
+            <div className="fixed inset-0 bg-black opacity-50" onClick={closeGrantModal}></div>
             <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Grant Phone Permission</h3>
 
               <div className="space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    User ID <span className="text-red-500">*</span>
+                    Select User <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={grantUserId}
-                    onChange={(e) => setGrantUserId(e.target.value)}
+                    value={userSearch}
+                    onChange={(e) => {
+                      setUserSearch(e.target.value)
+                      setShowUserDropdown(true)
+                      // Clear selection if user types
+                      if (grantEmail !== e.target.value) {
+                        setGrantUserId('')
+                        setGrantEmail('')
+                      }
+                    }}
+                    onFocus={() => setShowUserDropdown(true)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                    placeholder="UUID from auth.users"
+                    placeholder="Search by email..."
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Find this in Supabase Dashboard → Authentication → Users
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    User Email (for display)
-                  </label>
-                  <input
-                    type="email"
-                    value={grantEmail}
-                    onChange={(e) => setGrantEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                    placeholder="user@example.com"
-                  />
+                  {showUserDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {usersLoading ? (
+                        <div className="px-3 py-2 text-gray-500 text-sm">Loading users...</div>
+                      ) : filteredUsers.length === 0 ? (
+                        <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
+                      ) : (
+                        filteredUsers.map(user => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => selectUser(user)}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm text-gray-900"
+                          >
+                            {user.email}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {grantUserId && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {grantEmail}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -346,7 +428,7 @@ export default function AdminPage() {
 
               <div className="flex justify-end space-x-3 mt-6">
                 <button
-                  onClick={() => setShowGrantModal(false)}
+                  onClick={closeGrantModal}
                   className="px-4 py-2 text-gray-700 hover:text-gray-900"
                 >
                   Cancel
