@@ -1,11 +1,12 @@
 """FastAPI application for the GenCon Hotels scraper."""
 
-__version__ = "1.2.0"  # Multi-night scraping with 2 min interval
+__version__ = "1.3.0"  # Permanent hotel cache + 5x parallel scraping
 
 import asyncio
 import logging
 import signal
 import sys
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, date
 from typing import Optional
@@ -32,6 +33,31 @@ passkey_client: Optional[PasskeyClient] = None
 scheduler: Optional[AsyncIOScheduler] = None
 scraper_enabled = True
 start_time = datetime.utcnow()
+
+# Persistent hotel cache (refreshed daily)
+_hotel_cache: Optional[dict[int, str]] = None
+_hotel_cache_date: Optional[date] = None
+
+
+def get_hotel_cache(database: Database, year: int) -> dict[int, str]:
+    """
+    Get hotel cache, refreshing daily.
+
+    Hotels rarely change, so we cache them in memory across scrapes.
+    Cache is refreshed once per day to pick up any new hotels.
+    """
+    global _hotel_cache, _hotel_cache_date
+
+    today = date.today()
+
+    if _hotel_cache is None or _hotel_cache_date != today:
+        cache_start = time.perf_counter()
+        _hotel_cache = database.get_all_hotel_ids(year)
+        _hotel_cache_date = today
+        cache_ms = int((time.perf_counter() - cache_start) * 1000)
+        logger.info(f"Refreshed hotel cache: {len(_hotel_cache)} hotels in {cache_ms}ms (daily refresh)")
+
+    return _hotel_cache
 
 
 async def run_scrape():
@@ -74,13 +100,9 @@ async def run_scrape():
         if result is None:
             raise Exception("Scrape returned no results")
 
-        # Get all hotel IDs in ONE query (optimized)
-        import time
-        cache_start = time.perf_counter()
-        hotel_cache = db.get_all_hotel_ids(year)
+        # Use persistent hotel cache (refreshed daily)
+        hotel_cache = get_hotel_cache(db, year)
         hotel_ids = {h.id: hotel_cache.get(h.id) for h in result.hotels if h.id in hotel_cache}
-        cache_ms = int((time.perf_counter() - cache_start) * 1000)
-        logger.info(f"Hotel cache loaded in {cache_ms}ms ({len(hotel_cache)} hotels)")
 
         # Compute current result hash (with timing)
         hash_start = time.perf_counter()
@@ -146,13 +168,14 @@ async def lifespan(app: FastAPI):
         db = Database(config.supabase_url, config.supabase_service_role_key)
         logger.info("Database initialized")
 
-        # Initialize Passkey client
+        # Initialize Passkey client with max parallelism (all 5 nights at once)
         passkey_client = PasskeyClient(
             token_url=config.passkey_token_url,
             event_id=config.passkey_event_id,
             owner_id=config.passkey_owner_id,
+            max_concurrent=5,  # Scrape all 5 nights simultaneously
         )
-        logger.info("Passkey client initialized")
+        logger.info("Passkey client initialized with max_concurrent=5")
 
         # Initialize scheduler
         scheduler = AsyncIOScheduler()
