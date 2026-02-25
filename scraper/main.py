@@ -1,6 +1,6 @@
 """FastAPI application for the GenCon Hotels scraper."""
 
-__version__ = "1.3.0"  # Permanent hotel cache + 5x parallel scraping
+__version__ = "1.4.0"  # + Room keys cache for faster change detection
 
 import asyncio
 import logging
@@ -38,6 +38,9 @@ start_time = datetime.utcnow()
 _hotel_cache: Optional[dict[int, str]] = None
 _hotel_cache_date: Optional[date] = None
 
+# Persistent room keys cache (updated after each scrape)
+_room_keys_cache: Optional[dict[tuple[str, str], dict]] = None
+
 
 def get_hotel_cache(database: Database, year: int) -> dict[int, str]:
     """
@@ -58,6 +61,36 @@ def get_hotel_cache(database: Database, year: int) -> dict[int, str]:
         logger.info(f"Refreshed hotel cache: {len(_hotel_cache)} hotels in {cache_ms}ms (daily refresh)")
 
     return _hotel_cache
+
+
+def get_room_keys_cache() -> Optional[dict[tuple[str, str], dict]]:
+    """Get the cached room keys from the previous scrape."""
+    return _room_keys_cache
+
+
+def update_room_keys_cache(snapshots: list, hotel_id_map: dict[int, str]):
+    """
+    Update the room keys cache after a successful scrape.
+
+    Args:
+        snapshots: List of RoomSnapshotCreate objects that were inserted
+        hotel_id_map: Mapping of passkey_hotel_id -> database UUID
+    """
+    global _room_keys_cache
+
+    new_cache = {}
+    for snapshot in snapshots:
+        key = (snapshot.hotel_id, snapshot.room_type)
+        new_cache[key] = {
+            "check_in": snapshot.check_in.isoformat() if hasattr(snapshot.check_in, 'isoformat') else snapshot.check_in,
+            "check_out": snapshot.check_out.isoformat() if hasattr(snapshot.check_out, 'isoformat') else snapshot.check_out,
+            "nightly_rate": snapshot.nightly_rate,
+            "available_count": snapshot.available_count,
+            "raw_block_data": snapshot.raw_block_data or {},
+        }
+
+    _room_keys_cache = new_cache
+    logger.info(f"Updated room keys cache: {len(new_cache)} room types")
 
 
 async def run_scrape():
@@ -125,10 +158,17 @@ async def run_scrape():
             logger.info(timing.log_summary())
             return
 
-        # Process and store results (with timing)
-        hotels_found, rooms_found = await process_multi_night_result(
-            db, result, scrape_run_id, year, timing=timing, hotel_cache=hotel_cache
+        # Process and store results (with timing, using cached room keys)
+        room_keys_cache = get_room_keys_cache()
+        hotels_found, rooms_found, snapshots = await process_multi_night_result(
+            db, result, scrape_run_id, year,
+            timing=timing,
+            hotel_cache=hotel_cache,
+            room_keys_cache=room_keys_cache,
         )
+
+        # Update room keys cache for next scrape
+        update_room_keys_cache(snapshots, hotel_ids)
 
         duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
 

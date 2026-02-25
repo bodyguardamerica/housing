@@ -600,7 +600,8 @@ async def process_multi_night_result(
     year: int,
     timing: Optional[ScrapeTiming] = None,
     hotel_cache: Optional[dict[int, str]] = None,
-) -> tuple[int, int]:
+    room_keys_cache: Optional[dict[tuple[str, str], dict]] = None,
+) -> tuple[int, int, list]:
     """
     Process a multi-night scrape result and store it in the database.
 
@@ -621,9 +622,18 @@ async def process_multi_night_result(
 
     # Get previously available room keys to detect sold-out rooms (with timing)
     prev_keys_start = time.perf_counter()
-    previous_room_keys = await db.get_latest_room_keys(year)
-    if timing:
-        timing.get_previous_keys_ms = int((time.perf_counter() - prev_keys_start) * 1000)
+    if room_keys_cache is not None:
+        # Use cached room keys (fast path - no DB query)
+        previous_room_keys = room_keys_cache
+        if timing:
+            timing.get_previous_keys_ms = 0
+        logger.info(f"Using cached room keys: {len(previous_room_keys)} entries")
+    else:
+        # First run or cache miss - fetch from DB
+        previous_room_keys = await db.get_latest_room_keys(year)
+        if timing:
+            timing.get_previous_keys_ms = int((time.perf_counter() - prev_keys_start) * 1000)
+        logger.info(f"Loaded room keys from DB in {timing.get_previous_keys_ms if timing else 'N/A'}ms")
 
     # Ensure all hotels exist in database (optimized with cache)
     upsert_hotels_start = time.perf_counter()
@@ -824,7 +834,8 @@ async def process_multi_night_result(
             f"notifications={timing.trigger_notifications_ms}ms ({len(notifications_to_send)} sent)"
         )
 
-    return len(hotels_processed), rooms_found
+    # Return snapshots list for cache update
+    return len(hotels_processed), rooms_found, snapshots_to_insert
 
 
 def compute_multi_night_hash(result: MultiNightScrapeResult, hotel_ids: dict[int, str]) -> str:
