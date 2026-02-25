@@ -18,7 +18,8 @@ function createAuthClient(authHeader: string | null) {
   })
 }
 
-async function verifyAdmin(supabase: ReturnType<typeof createClient>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function verifyAdmin(supabase: any) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user || !user.email) return null
 
