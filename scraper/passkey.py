@@ -602,6 +602,88 @@ class PasskeyClient:
         )
         return result, timing
 
+    async def scrape_full_range(
+        self,
+        check_in: date,
+        check_out: date,
+        max_retries: int = 3,
+        timing: Optional[ScrapeTiming] = None,
+    ) -> Tuple[Optional[MultiNightScrapeResult], ScrapeTiming]:
+        """
+        Scrape the full date range in a SINGLE request and extract per-night availability
+        from the inventory array.
+
+        This is faster and more reliable than scrape_individual_nights() because:
+        - Single HTTP request instead of 5
+        - No session context collision from parallel requests
+        - Inventory array already contains per-day availability
+
+        Returns (result, timing) tuple.
+        """
+        from datetime import timedelta
+
+        if timing is None:
+            timing = ScrapeTiming()
+
+        all_nights: List[NightAvailability] = []
+
+        # Initialize session (with timing)
+        session_start = time.perf_counter()
+        if self._csrf_token is None:
+            if not await self.initialize_session():
+                logger.error("Failed to initialize session")
+                return None, timing
+        timing.session_init_ms = int((time.perf_counter() - session_start) * 1000)
+
+        # Single scrape for full date range
+        scrape_start = time.perf_counter()
+        result = await self.scrape(check_in, check_out, max_retries)
+        scrape_ms = int((time.perf_counter() - scrape_start) * 1000)
+
+        if result is None:
+            logger.error("Full range scrape returned no results")
+            return None, timing
+
+        # Extract per-night availability from inventory arrays
+        for hotel in result.hotels:
+            for block in hotel.blocks:
+                for inv in block.inventory:
+                    # Parse inventory date
+                    try:
+                        if isinstance(inv.date, str):
+                            inv_date = date.fromisoformat(inv.date)
+                        else:
+                            inv_date = inv.date
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid inventory date: {inv.date}")
+                        continue
+
+                    all_nights.append(NightAvailability(
+                        hotel_id=hotel.id,
+                        hotel_name=hotel.name,
+                        room_type=block.name,
+                        night_date=inv_date,
+                        available_count=inv.available,
+                        nightly_rate=inv.rate,
+                    ))
+
+        timing.total_http_ms = scrape_ms
+        timing.nights = [NightTiming(night_date=check_in, total_ms=scrape_ms)]
+
+        logger.info(
+            f"Full range scrape: {len(result.hotels)} hotels, {len(all_nights)} room-nights "
+            f"in {scrape_ms}ms"
+        )
+
+        multi_result = MultiNightScrapeResult(
+            hotels=result.hotels,
+            nights=all_nights,
+            check_in=check_in,
+            check_out=check_out,
+            scraped_at=datetime.utcnow(),
+        )
+        return multi_result, timing
+
     async def close(self):
         """Close the HTTP client."""
         if self._client:

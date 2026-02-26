@@ -132,8 +132,8 @@ async def run_scrape():
     try:
         global _last_good_nights_count
 
-        # Perform multi-night scrape to catch partial availability
-        result, timing = await passkey_client.scrape_individual_nights(check_in, check_out, timing=timing)
+        # Perform single full-range scrape (extracts per-night data from inventory)
+        result, timing = await passkey_client.scrape_full_range(check_in, check_out, timing=timing)
 
         if result is None:
             raise Exception("Scrape returned no results")
@@ -237,14 +237,15 @@ async def lifespan(app: FastAPI):
         db = Database(config.supabase_url, config.supabase_service_role_key)
         logger.info("Database initialized")
 
-        # Initialize Passkey client with max parallelism (all 5 nights at once)
+        # Initialize Passkey client
+        # Uses single full-range scrape instead of per-night scrapes
         passkey_client = PasskeyClient(
             token_url=config.passkey_token_url,
             event_id=config.passkey_event_id,
             owner_id=config.passkey_owner_id,
-            max_concurrent=1,  # Sequential scraping - parallel causes session context collision
+            max_concurrent=1,  # Not used for full-range scrape
         )
-        logger.info("Passkey client initialized with max_concurrent=1 (sequential mode)")
+        logger.info("Passkey client initialized (using full-range scrape mode)")
 
         # Initialize scheduler
         scheduler = AsyncIOScheduler()

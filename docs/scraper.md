@@ -67,7 +67,8 @@ If you see these frequently, increase `SCRAPE_INTERVAL_SECONDS`.
 
 ### Current Architecture
 
-- **Parallel scraping**: All 5 nights scraped simultaneously (max_concurrent=5)
+- **Single full-range scrape**: One HTTP request for the entire date range
+- **Per-night data from inventory**: Passkey returns per-day availability in the inventory array
 - **Batch DB inserts**: Single POST for all snapshots
 - **Hotel caching**: In-memory cache refreshed daily
 - **Room keys caching**: Previous scrape data cached for change detection
@@ -78,8 +79,7 @@ If you see these frequently, increase `SCRAPE_INTERVAL_SECONDS`.
 ```
 Scrape Timing Summary:
   Session init: 0ms (cached)
-  HTTP requests: 3500ms (5 nights in parallel)
-  Delays: 0ms (parallel mode)
+  HTTP requests: 2000-3000ms (single request)
   Database operations: 800ms
     - Previous keys: 0ms (cached)
     - Upsert hotels: 50ms
@@ -87,7 +87,7 @@ Scrape Timing Summary:
     - Notifications: 150ms
 ```
 
-**Total scrape time**: ~5-8 seconds
+**Total scrape time**: ~3-5 seconds
 
 ### Monitoring Queries
 
