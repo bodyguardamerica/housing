@@ -41,6 +41,9 @@ _hotel_cache_date: Optional[date] = None
 # Persistent room keys cache (updated after each scrape)
 _room_keys_cache: Optional[dict[tuple[str, str], dict]] = None
 
+# Track previous scrape's data count to detect bad Passkey responses
+_last_good_nights_count: int = 0
+
 
 def get_hotel_cache(database: Database, year: int) -> dict[int, str]:
     """
@@ -127,11 +130,32 @@ async def run_scrape():
     timing = ScrapeTiming()
 
     try:
+        global _last_good_nights_count
+
         # Perform multi-night scrape to catch partial availability
         result, timing = await passkey_client.scrape_individual_nights(check_in, check_out, timing=timing)
 
         if result is None:
             raise Exception("Scrape returned no results")
+
+        # Detect suspicious data drops from Passkey (inconsistent API responses)
+        current_nights_count = len(result.nights)
+        if _last_good_nights_count > 0 and current_nights_count < _last_good_nights_count * 0.5:
+            # Got less than 50% of previous data - likely bad Passkey response
+            duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
+            logger.warning(
+                f"SUSPICIOUS DATA: Got {current_nights_count} nights but expected ~{_last_good_nights_count}. "
+                f"Passkey may have returned incomplete data. Skipping this scrape."
+            )
+            await db.update_scrape_run(scrape_run_id, ScrapeRunUpdate(
+                completed_at=datetime.utcnow(),
+                status="skipped",
+                error_message=f"Suspicious data drop: {current_nights_count} vs expected ~{_last_good_nights_count}",
+                hotels_found=len(result.hotels),
+                rooms_found=current_nights_count,
+                duration_ms=duration_ms,
+            ))
+            return
 
         # Use persistent hotel cache (refreshed daily)
         hotel_cache = get_hotel_cache(db, year)
@@ -145,6 +169,8 @@ async def run_scrape():
 
         if current_hash == previous_hash:
             # No changes, mark as no_changes
+            # Still update baseline since data was valid
+            _last_good_nights_count = len(result.nights)
             duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
             await db.update_scrape_run(scrape_run_id, ScrapeRunUpdate(
                 completed_at=datetime.utcnow(),
@@ -169,6 +195,9 @@ async def run_scrape():
 
         # Update room keys cache for next scrape
         update_room_keys_cache(snapshots, hotel_ids)
+
+        # Update the "good data" baseline for detecting bad Passkey responses
+        _last_good_nights_count = len(result.nights)
 
         duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
 

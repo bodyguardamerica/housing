@@ -154,6 +154,21 @@ Notifications are sent in parallel (max 15 concurrent) via Supabase Edge Functio
 
 **Note**: Uses async HTTP client for true parallelism. Each notification takes ~700ms, so 15 notifications run in ~1-2 seconds instead of 10+ seconds.
 
+## Data Quality Protection
+
+Passkey's API sometimes returns inconsistent data (e.g., 15 blocks one scrape, 150 the next). The scraper detects this:
+
+- Tracks "last good" data count from previous successful scrape
+- If new scrape has <50% of previous data, marks as `status=skipped`
+- Logs: `SUSPICIOUS DATA: Got X nights but expected ~Y`
+
+Check for skipped scrapes:
+```sql
+SELECT * FROM scrape_runs
+WHERE status = 'skipped'
+ORDER BY started_at DESC;
+```
+
 ## Troubleshooting
 
 ### Scraper not running
