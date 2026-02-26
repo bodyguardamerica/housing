@@ -35,6 +35,14 @@ class Database:
             "Prefer": "return=representation",
         }
         self.client = httpx.Client(headers=self.headers, timeout=30.0)
+        # Async client for parallel operations (notifications)
+        self._async_client: Optional[httpx.AsyncClient] = None
+
+    async def _get_async_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client for parallel operations."""
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(headers=self.headers, timeout=30.0)
+        return self._async_client
 
     def _get(self, table: str, params: dict = None) -> list:
         """GET request to Supabase."""
@@ -176,8 +184,11 @@ class Database:
         """
         Call the match-watchers edge function to trigger notifications for a new snapshot.
         Only called when available_count > 0.
+
+        Uses async HTTP client for true parallel execution when called via gather().
         """
         try:
+            async_client = await self._get_async_client()
             url = f"{self.url}/functions/v1/match-watchers"
             headers = {
                 "Content-Type": "application/json",
@@ -198,7 +209,7 @@ class Database:
                     "year": snapshot_data["year"],
                 }
             }
-            response = self.client.post(url, json=payload, headers=headers)
+            response = await async_client.post(url, json=payload, headers=headers)
             if response.status_code == 200:
                 result = response.json()
                 logger.info(f"Notifications triggered for snapshot {snapshot_id}: {result.get('message', 'OK')}")
@@ -726,6 +737,22 @@ async def process_multi_night_result(
         total_rate = sum(n["rate"] for n in nights)
         avg_nightly_rate = total_rate / len(nights) if nights else 0
 
+        # Data integrity check: log if nights_available < total_nights but we somehow have availability
+        if nights_available < total_nights_in_range and full_stay_available > 0:
+            logger.error(
+                f"DATA INTEGRITY ERROR: {room_type} at hotel {db_hotel_id} has "
+                f"nights_available={nights_available}/{total_nights_in_range} but full_stay_available={full_stay_available}. "
+                f"This should never happen! Forcing available_count to 0."
+            )
+            full_stay_available = 0
+
+        # Log partial availability for debugging
+        if is_partial:
+            logger.info(
+                f"Partial availability: {room_type} - {nights_available}/{total_nights_in_range} nights "
+                f"(available counts: {[n['available'] for n in nights]})"
+            )
+
         snapshot = RoomSnapshotCreate(
             scrape_run_id=scrape_run_id,
             hotel_id=db_hotel_id,
@@ -794,6 +821,15 @@ async def process_multi_night_result(
 
     if sold_out_count > 0:
         logger.info(f"Marked {sold_out_count} room types as sold out")
+
+    # Log availability summary
+    full_avail_count = sum(1 for s in snapshots_to_insert if s.available_count > 0)
+    partial_count = sum(1 for s in snapshots_to_insert
+                        if s.available_count == 0 and s.raw_block_data and s.raw_block_data.get("partial_availability"))
+    logger.info(
+        f"Availability summary: {full_avail_count} rooms with full availability, "
+        f"{partial_count} with partial, {sold_out_count} sold out"
+    )
 
     # PHASE 2: Batch insert all snapshots at once (with timing)
     create_snapshots_start = time.perf_counter()
