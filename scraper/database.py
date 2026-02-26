@@ -433,35 +433,43 @@ class Database:
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def get_last_scrape_hash(self, year: int) -> Optional[str]:
-        """Get a hash of the last successful scrape's data for deduplication."""
-        result = self._get("scrape_runs", {
-            "status": "eq.success",
-            "year": f"eq.{year}",
-            "no_changes": "eq.false",
-            "select": "id",
-            "order": "completed_at.desc",
-            "limit": "1",
-        })
+        """Get a hash of the last successful scrape's data for deduplication.
 
-        if not result:
+        Returns None on any error - this makes deduplication fail-safe.
+        If we can't get the previous hash, we just proceed with the scrape.
+        """
+        try:
+            result = self._get("scrape_runs", {
+                "status": "eq.success",
+                "year": f"eq.{year}",
+                "no_changes": "eq.false",
+                "select": "id",
+                "order": "completed_at.desc",
+                "limit": "1",
+            })
+
+            if not result:
+                return None
+
+            scrape_id = result[0]["id"]
+
+            snapshots = self._get("room_snapshots", {
+                "scrape_run_id": f"eq.{scrape_id}",
+                "select": "hotel_id,room_type,available_count",
+                "order": "hotel_id,room_type",
+            })
+
+            if not snapshots:
+                return None
+
+            parts = []
+            for s in snapshots:
+                parts.append(f"{s['hotel_id']}:{s['room_type']}:{s['available_count']}")
+
+            return "|".join(parts)
+        except Exception as e:
+            logger.warning(f"Failed to get last scrape hash (proceeding without deduplication): {e}")
             return None
-
-        scrape_id = result[0]["id"]
-
-        snapshots = self._get("room_snapshots", {
-            "scrape_run_id": f"eq.{scrape_id}",
-            "select": "hotel_id,room_type,available_count",
-            "order": "hotel_id,room_type",
-        })
-
-        if not snapshots:
-            return None
-
-        parts = []
-        for s in snapshots:
-            parts.append(f"{s['hotel_id']}:{s['room_type']}:{s['available_count']}")
-
-        return "|".join(parts)
 
     async def get_last_scrape_status(self) -> Optional[dict]:
         """Get the status of the last scrape run."""
