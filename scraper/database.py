@@ -521,40 +521,47 @@ class Database:
         """
         Get all (hotel_id, room_type) combinations from the latest successful scrape.
         Returns a dict mapping (hotel_id, room_type) -> snapshot data including availability.
+
+        Returns empty dict on any error - this allows scraping to continue without
+        previous room key data (just won't detect sold-out rooms as accurately).
         """
-        # Get the latest successful scrape with changes
-        result = self._get("scrape_runs", {
-            "status": "eq.success",
-            "year": f"eq.{year}",
-            "no_changes": "eq.false",
-            "select": "id",
-            "order": "completed_at.desc",
-            "limit": "1",
-        })
+        try:
+            # Get the latest successful scrape with changes
+            result = self._get("scrape_runs", {
+                "status": "eq.success",
+                "year": f"eq.{year}",
+                "no_changes": "eq.false",
+                "select": "id",
+                "order": "completed_at.desc",
+                "limit": "1",
+            })
 
-        if not result:
+            if not result:
+                return {}
+
+            scrape_id = result[0]["id"]
+
+            # Get all snapshots from that scrape (include available_count for change detection)
+            snapshots = self._get("room_snapshots", {
+                "scrape_run_id": f"eq.{scrape_id}",
+                "select": "hotel_id,room_type,check_in,check_out,nightly_rate,available_count,raw_block_data",
+            })
+
+            room_keys = {}
+            for s in snapshots:
+                key = (s["hotel_id"], s["room_type"])
+                room_keys[key] = {
+                    "check_in": s["check_in"],
+                    "check_out": s["check_out"],
+                    "nightly_rate": s["nightly_rate"],
+                    "available_count": s.get("available_count", 0),
+                    "raw_block_data": s.get("raw_block_data", {}),
+                }
+
+            return room_keys
+        except Exception as e:
+            logger.warning(f"Failed to get latest room keys (proceeding without previous data): {e}")
             return {}
-
-        scrape_id = result[0]["id"]
-
-        # Get all snapshots from that scrape (include available_count for change detection)
-        snapshots = self._get("room_snapshots", {
-            "scrape_run_id": f"eq.{scrape_id}",
-            "select": "hotel_id,room_type,check_in,check_out,nightly_rate,available_count,raw_block_data",
-        })
-
-        room_keys = {}
-        for s in snapshots:
-            key = (s["hotel_id"], s["room_type"])
-            room_keys[key] = {
-                "check_in": s["check_in"],
-                "check_out": s["check_out"],
-                "nightly_rate": s["nightly_rate"],
-                "available_count": s.get("available_count", 0),
-                "raw_block_data": s.get("raw_block_data", {}),
-            }
-
-        return room_keys
 
 
 async def process_scrape_result(
