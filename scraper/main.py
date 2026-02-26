@@ -242,9 +242,9 @@ async def lifespan(app: FastAPI):
             token_url=config.passkey_token_url,
             event_id=config.passkey_event_id,
             owner_id=config.passkey_owner_id,
-            max_concurrent=5,  # Scrape all 5 nights simultaneously
+            max_concurrent=1,  # Sequential scraping - parallel causes session context collision
         )
-        logger.info("Passkey client initialized with max_concurrent=5")
+        logger.info("Passkey client initialized with max_concurrent=1 (sequential mode)")
 
         # Initialize scheduler
         scheduler = AsyncIOScheduler()
