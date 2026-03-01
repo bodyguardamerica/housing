@@ -41,6 +41,9 @@ _hotel_cache_date: Optional[date] = None
 # Persistent room keys cache (updated after each scrape)
 _room_keys_cache: Optional[dict[tuple[str, str], dict]] = None
 
+# Persistent hash cache (eliminates DB round-trip for deduplication)
+_last_scrape_hash: Optional[str] = None
+
 # Track previous scrape's data count to detect bad Passkey responses
 _last_good_nights_count: int = 0
 
@@ -162,14 +165,20 @@ async def run_scrape():
         hotel_ids = {h.id: hotel_cache.get(h.id) for h in result.hotels if h.id in hotel_cache}
 
         # Compute current result hash (with timing)
+        global _last_scrape_hash
         hash_start = time.perf_counter()
         current_hash = compute_multi_night_hash(result, hotel_ids)
-        previous_hash = await db.get_last_scrape_hash(year)
+        # Use cached hash if available, otherwise fetch from DB (first run only)
+        if _last_scrape_hash is not None:
+            previous_hash = _last_scrape_hash
+        else:
+            previous_hash = await db.get_last_scrape_hash(year)
         timing.hash_computation_ms = int((time.perf_counter() - hash_start) * 1000)
 
         if current_hash == previous_hash:
             # No changes, mark as no_changes
-            # Still update baseline since data was valid
+            # Still update baselines since data was valid
+            _last_scrape_hash = current_hash
             _last_good_nights_count = len(result.nights)
             duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
             await db.update_scrape_run(scrape_run_id, ScrapeRunUpdate(
@@ -193,8 +202,9 @@ async def run_scrape():
             room_keys_cache=room_keys_cache,
         )
 
-        # Update room keys cache for next scrape
+        # Update caches for next scrape
         update_room_keys_cache(snapshots, hotel_ids)
+        _last_scrape_hash = current_hash
 
         # Update the "good data" baseline for detecting bad Passkey responses
         _last_good_nights_count = len(result.nights)

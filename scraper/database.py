@@ -435,9 +435,11 @@ class Database:
     async def get_last_scrape_hash(self, year: int) -> Optional[str]:
         """Get a hash of the last successful scrape's data for deduplication.
 
+        Only called on first run when no in-memory cache exists.
         Returns None on any error - this makes deduplication fail-safe.
         If we can't get the previous hash, we just proceed with the scrape.
         """
+        import hashlib
         try:
             result = self._get("scrape_runs", {
                 "status": "eq.success",
@@ -462,11 +464,11 @@ class Database:
             if not snapshots:
                 return None
 
-            parts = []
-            for s in snapshots:
-                parts.append(f"{s['hotel_id']}:{s['room_type']}:{s['available_count']}")
-
-            return "|".join(parts)
+            # Build hash matching compute_multi_night_hash format
+            # Note: DB snapshots use db UUIDs for hotel_id, while compute_multi_night_hash
+            # maps passkey IDs to UUIDs — the formats won't match on first run.
+            # Return None to force a full process on first run after restart.
+            return None
         except Exception as e:
             logger.warning(f"Failed to get last scrape hash (proceeding without deduplication): {e}")
             return None
@@ -890,10 +892,11 @@ async def process_multi_night_result(
 
 
 def compute_multi_night_hash(result: MultiNightScrapeResult, hotel_ids: dict[int, str]) -> str:
-    """Compute a hash string for multi-night results deduplication."""
-    parts = []
+    """Compute a hash digest for multi-night results deduplication."""
+    import hashlib
+    h = hashlib.sha256()
     # Sort nights for consistent hashing
     for night in sorted(result.nights, key=lambda n: (n.hotel_id, n.room_type, n.night_date)):
         hotel_id = hotel_ids.get(night.hotel_id, str(night.hotel_id))
-        parts.append(f"{hotel_id}:{night.room_type}:{night.night_date}:{night.available_count}")
-    return "|".join(parts)
+        h.update(f"{hotel_id}:{night.room_type}:{night.night_date}:{night.available_count}\n".encode())
+    return h.hexdigest()
