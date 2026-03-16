@@ -26,6 +26,11 @@ export default function DashboardPage() {
   const [watcherRefreshKey, setWatcherRefreshKey] = useState(0)
 
   const { rooms, meta, loading, error } = useRooms(filters)
+  // Unfiltered rooms used exclusively for alert matching.
+  // Using the UI-filtered `rooms` for checkMatches meant that any active filter
+  // (e.g. "downtown only", "skywalk only", max distance) would hide hotels from
+  // the alert system even when the user's alert criteria would have matched them.
+  const { rooms: allRooms } = useRooms({})
   const {
     alerts,
     matches,
@@ -54,12 +59,14 @@ export default function DashboardPage() {
   const { session, isAuthenticated } = useAuth()
   const { passkeyUrl, setPasskeyUrl, isSyncing } = usePasskeyUrl()
 
-  // Check for matches whenever rooms or alerts change
+  // Check for matches whenever the full (unfiltered) room list or alerts change.
+  // Using allRooms instead of the UI-filtered `rooms` ensures that hotels excluded
+  // by the current display filter are still checked against alert criteria.
   useEffect(() => {
-    if (alertsLoaded && rooms.length > 0) {
-      checkMatches(rooms)
+    if (alertsLoaded && allRooms.length > 0) {
+      checkMatches(allRooms)
     }
-  }, [rooms, alerts, alertsLoaded, checkMatches])
+  }, [allRooms, alerts, alertsLoaded, checkMatches])
 
   // Fetch alerts from server when authenticated
   useEffect(() => {

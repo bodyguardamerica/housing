@@ -254,12 +254,18 @@ function saveToStorage(state: AlertsState): void {
 function roomMatchesAlert(room: RoomAvailability, alert: LocalAlert): boolean {
   if (!alert.enabled) return false
 
-  // Only match rooms with FULL availability (not partial, not sold out)
-  // Must have at least 1 room available
-  if (room.available_count <= 0) return false
+  // Skip rooms that are fully sold out (no availability at all, not even partial)
+  const hasFullAvailability = room.available_count > 0
+  const hasPartialAvailability = room.partial_availability === true && (room.nights_available ?? 0) > 0
+  if (!hasFullAvailability && !hasPartialAvailability) return false
 
-  // Exclude partial availability rooms (only some nights available)
-  if (room.partial_availability === true) return false
+  // For partial availability, check the minNightsAvailable requirement if set
+  if (hasPartialAvailability && !hasFullAvailability) {
+    const nightsAvailable = room.nights_available ?? 0
+    // If the alert requires a minimum number of nights, enforce it
+    if (alert.minNightsAvailable !== undefined && nightsAvailable < alert.minNightsAvailable) return false
+    // If no minimum set, any partial availability is acceptable
+  }
 
   // Hotel name partial match (case insensitive)
   if (alert.hotelName) {
