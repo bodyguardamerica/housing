@@ -114,10 +114,13 @@ class RoomBlock(BaseModel):
 
     @property
     def nightly_rate(self) -> float:
-        """First night's rate (typically representative)."""
+        """Representative nightly rate — first non-zero rate, or 0 if none."""
         if not self.inventory:
             return 0.0
-        return self.inventory[0].rate
+        for inv in self.inventory:
+            if inv.rate > 0:
+                return inv.rate
+        return 0.0
 
 
 class HotelResult(BaseModel):

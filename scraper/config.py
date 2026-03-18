@@ -40,7 +40,7 @@ class Config:
             passkey_owner_id=os.environ.get("PASSKEY_OWNER_ID", "10909638"),
             scrape_interval_seconds=int(os.environ.get("SCRAPE_INTERVAL_SECONDS", "45")),  # Pro tier: 45s safe
             default_check_in=os.environ.get("DEFAULT_CHECK_IN", "2026-07-29"),
-            default_check_out=os.environ.get("DEFAULT_CHECK_OUT", "2026-08-03"),
+            default_check_out=os.environ.get("DEFAULT_CHECK_OUT", "2026-08-02"),
             current_year=int(os.environ.get("CURRENT_YEAR", "2026")),
             scraper_api_key=os.environ.get("SCRAPER_API_KEY", ""),
         )
