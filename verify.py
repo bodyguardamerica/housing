@@ -354,6 +354,54 @@ def print_report(gencon_rooms, gencon_ts, our_rooms, our_run):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def run_supabase_only() -> bool:
+    """
+    Health check using only Supabase data — no external HTTP calls.
+    Used by the scheduled cloud agent which cannot reach genconhotels.com.
+    """
+    print("Fetching Supabase...", end=" ", flush=True)
+    our_rooms, our_run = fetch_our_data()
+    print(f"{len(our_rooms)} snapshots")
+
+    health = check_scraper_health(our_run)
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"\n{'='*70}")
+    print(f"  GenCon Scraper Health Report — {now}")
+    print(f"{'='*70}")
+
+    age = health["last_run_age_seconds"]
+    status_icon = "✅" if health["scraper_ok"] else "🚨"
+    print(f"\n{status_icon} SCRAPER STATUS: {'OK' if health['scraper_ok'] else 'WARNING'}")
+    print(f"   Last run:         {age}s ago  (status: {health['last_run_status']})")
+    print(f"   Last change run:  {health['last_change_run_age_hours']}h ago  ({health['rooms_in_last_change_run']} rooms changed)")
+
+    if not health["scraper_ok"]:
+        print(f"\n🚨 WARNING: Scraper appears down — last run was {age}s ago!")
+
+    # Summarise current partial availability
+    partial = [(h, r, d) for (h, r), d in our_rooms.items() if d["open_dates"]]
+    sold_out = [(h, r) for (h, r), d in our_rooms.items() if not d["open_dates"]]
+
+    print(f"\n📊 CURRENT AVAILABILITY SNAPSHOT")
+    print(f"   Rooms with any open nights: {len(partial)}")
+    print(f"   Rooms fully sold out:       {len(sold_out)}")
+    print(f"   Total tracked:              {len(our_rooms)}")
+
+    if partial:
+        print(f"\n   Open rooms:")
+        for hotel, room, data in sorted(partial, key=lambda x: x[0])[:20]:
+            nights_str = ", ".join(d[-5:] for d in data["open_dates"])
+            print(f"   • {hotel[:42]:<42} | {room[:32]:<32} | {nights_str}")
+        if len(partial) > 20:
+            print(f"   ... and {len(partial) - 20} more")
+
+    overall_ok = health["scraper_ok"]
+    print(f"\n{'✅ All systems nominal' if overall_ok else '🚨 Action required — see warnings above'}")
+    print(f"\n{'='*70}\n")
+    return overall_ok
+
+
 def run_once() -> bool:
     print("Fetching genconhotels.com...", end=" ", flush=True)
     raw_gencon, gencon_ts = fetch_gencon()
@@ -371,9 +419,14 @@ def main():
     parser = argparse.ArgumentParser(description="Verify GenCon hotel scraper accuracy")
     parser.add_argument("--watch", action="store_true", help="Re-run every 5 minutes")
     parser.add_argument("--interval", type=int, default=300, help="Watch interval in seconds (default: 300)")
+    parser.add_argument("--supabase-only", action="store_true",
+                        help="Skip genconhotels.com fetch — Supabase health check only (used by scheduled agent)")
     args = parser.parse_args()
 
-    if args.watch:
+    if args.supabase_only:
+        ok = run_supabase_only()
+        sys.exit(0 if ok else 1)
+    elif args.watch:
         print(f"Watch mode — running every {args.interval}s. Press Ctrl+C to stop.")
         while True:
             try:
