@@ -18,6 +18,8 @@ import { MatchAlertModal } from '@/components/MatchAlertModal'
 import { PasskeySettings } from '@/components/PasskeySettings'
 import type { RoomFilters, LocalAlert } from '@/lib/types'
 
+const EMPTY_FILTERS: RoomFilters = {}
+
 export default function DashboardPage() {
   const [filters, setFilters] = useState<RoomFilters>({})
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
@@ -30,7 +32,7 @@ export default function DashboardPage() {
   // Using the UI-filtered `rooms` for checkMatches meant that any active filter
   // (e.g. "downtown only", "skywalk only", max distance) would hide hotels from
   // the alert system even when the user's alert criteria would have matched them.
-  const { rooms: allRooms } = useRooms({})
+  const { rooms: allRooms } = useRooms(EMPTY_FILTERS)
   const {
     alerts,
     matches,
