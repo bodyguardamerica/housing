@@ -55,12 +55,14 @@ def fetch_snapshots():
     return snaps
 
 
-# Candidate rules: (name, predicate-on-night-dict)
+# Candidate rules. The current production rule (commit 32fb90a, verified
+# 100% agreement against genconhotels.com on 2026-04-24) is listed first.
+# Keep the old inverted rule as a regression guard so anyone re-running
+# this script sees the accuracy delta.
 RULES = {
-    "current (981282e)":   lambda n: n["available"] == 0 or 0 < n["available"] < 500,
-    "rate>0":              lambda n: n["rate"] > 0,
-    "rate>0 AND avail<500":lambda n: n["rate"] > 0 and n["available"] < 500,
-    "(avail 1..499) OR (rate>0 AND avail>=9999)": lambda n: (0 < n["available"] < 500) or (n["rate"] > 0 and n["available"] >= 9999),
+    "current (avail==10000 OR 1..499)": lambda n: n["available"] == 10000 or 0 < n["available"] < 500,
+    "rate>0 (interim, conflates WL)":   lambda n: n["rate"] > 0,
+    "pre-fix (inverted)":               lambda n: n["available"] == 0 or 0 < n["available"] < 500,
 }
 
 
