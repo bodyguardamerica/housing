@@ -135,7 +135,7 @@ def fetch_our_data() -> tuple[dict[tuple[str, str], dict], dict]:
 
         open_dates = [
             n["date"] for n in nights
-            if n.get("available") == 0 or 0 < n.get("available", 0) < 500
+            if n.get("available") == 10000 or 0 < n.get("available", 0) < 500
         ]
 
         rooms[(hotel_name, room_type)] = {

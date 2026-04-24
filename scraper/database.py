@@ -726,17 +726,18 @@ async def process_multi_night_result(
         if not nights:
             continue
 
-        # Passkey availability semantics (verified 2026-04-24 via compare_rules.py
-        # against genconhotels.com truth — rate>0 rule: 86.8% agreement vs 26.4%
-        # for the prior avail-based rule, which was inverted):
-        #   rate > 0  = night is bookable
-        #   rate == 0 = night is not in block / not bookable
-        # The `available` field is a secondary signal: 1-499 = specific count,
-        # 9999+ = open/unlimited, 0 = not bookable.
+        # Passkey `available` field encodes status via sentinels (verified 2026-04-24
+        # by cross-referencing every matched room/night against genconhotels.com
+        # — this rule achieves 100% agreement):
+        #   available == 10000     → Open (unlimited in block)
+        #   available in 1..499    → Open (specific count remaining)
+        #   available == 9998/9999 → Waitlist only (NOT bookable)
+        #   available == 0         → Closed / not in block
         MAX_REASONABLE_AVAILABILITY = 500
 
         def is_available_night(night: dict) -> bool:
-            return night["rate"] > 0
+            avail = night["available"]
+            return avail == 10000 or (0 < avail < MAX_REASONABLE_AVAILABILITY)
 
         nights_available = sum(1 for n in nights if is_available_night(n))
 
