@@ -102,13 +102,14 @@ serve(async (req) => {
         distance_label: distanceLabel,
       }
 
+      let delivered = false
+      let errorDetail: string | null = null
+
       try {
         if (match.channel === 'discord') {
-          // Get discord_mention for this watcher
           const watcherInfo = watcherDetails?.find(w => w.id === match.watcher_id)
           const discordMention = watcherInfo?.discord_mention || undefined
 
-          // Call Discord notifier
           const response = await fetch(
             `${supabaseUrl}/functions/v1/notify-discord`,
             {
@@ -125,13 +126,13 @@ serve(async (req) => {
             }
           )
 
-          if (response.ok) {
-            notifications.push({ watcher_id: match.watcher_id, channel: 'discord', status: 'sent' })
-          } else {
-            notifications.push({ watcher_id: match.watcher_id, channel: 'discord', status: 'failed' })
+          delivered = response.ok
+          if (!response.ok) {
+            errorDetail = `notify-discord HTTP ${response.status}: ${await response.text().catch(() => '<no body>')}`
+            console.error(`[match-watchers] discord failed for ${match.watcher_id}: ${errorDetail}`)
           }
+          notifications.push({ watcher_id: match.watcher_id, channel: 'discord', status: delivered ? 'sent' : 'failed' })
         } else if (match.channel === 'web_push') {
-          // Call Push notifier
           const subscription = JSON.parse(match.destination)
           const response = await fetch(
             `${supabaseUrl}/functions/v1/notify-push`,
@@ -148,31 +149,34 @@ serve(async (req) => {
             }
           )
 
-          if (response.ok) {
-            notifications.push({ watcher_id: match.watcher_id, channel: 'web_push', status: 'sent' })
-          } else {
-            notifications.push({ watcher_id: match.watcher_id, channel: 'web_push', status: 'failed' })
+          delivered = response.ok
+          if (!response.ok) {
+            errorDetail = `notify-push HTTP ${response.status}: ${await response.text().catch(() => '<no body>')}`
+            console.error(`[match-watchers] web_push failed for ${match.watcher_id}: ${errorDetail}`)
           }
+          notifications.push({ watcher_id: match.watcher_id, channel: 'web_push', status: delivered ? 'sent' : 'failed' })
         }
 
-        // Update watcher's last_notified_at and increment counter
-        await supabase
-          .from('watchers')
-          .update({
-            last_notified_at: new Date().toISOString(),
-            notifications_sent_today: supabase.rpc('increment_notification_count', {
-              watcher_id: match.watcher_id,
-            }),
+        // Only stamp cooldown and log as 'sent' when delivery actually succeeded.
+        if (delivered) {
+          await supabase.rpc('record_watcher_notification', {
+            p_watcher_id: match.watcher_id,
           })
-          .eq('id', match.watcher_id)
-
-        // Log notification
-        await supabase.from('notifications_log').insert({
-          watcher_id: match.watcher_id,
-          room_snapshot_id: payload.record.id,
-          channel: match.channel,
-          status: 'sent',
-        })
+          await supabase.from('notifications_log').insert({
+            watcher_id: match.watcher_id,
+            room_snapshot_id: payload.record.id,
+            channel: match.channel,
+            status: 'sent',
+          })
+        } else {
+          await supabase.from('notifications_log').insert({
+            watcher_id: match.watcher_id,
+            room_snapshot_id: payload.record.id,
+            channel: match.channel,
+            status: 'failed',
+            error_message: errorDetail,
+          })
+        }
       } catch (error) {
         console.error(`Error notifying watcher ${match.watcher_id}:`, error)
 
