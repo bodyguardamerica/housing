@@ -115,16 +115,18 @@ def fetch_our_data() -> tuple[dict[tuple[str, str], dict], dict]:
 
         run = run_resp[0]
 
-        # All snapshots from that run
+        # Latest snapshot per (hotel, room) across ALL runs — not just the
+        # most recent change run, which only includes rooms that changed.
         snaps = client.get(
-            f"{SUPABASE_URL}/rest/v1/room_snapshots",
+            f"{SUPABASE_URL}/rest/v1/latest_room_availability",
             params={
-                "select": "room_type,available_count,nightly_rate,raw_block_data,hotels(name)",
-                "scrape_run_id": f"eq.{run['id']}",
-                "order": "hotels(name)",
-                "limit": "1000",
+                "select": "room_type,available_count,nightly_rate,raw_block_data,hotel_name",
+                "order": "hotel_name",
+                "limit": "2000",
             },
         ).json()
+        for s in snaps:
+            s["hotels"] = {"name": s.pop("hotel_name", "?")}
 
     rooms = {}
     for s in snaps:
@@ -152,9 +154,9 @@ def fetch_our_data() -> tuple[dict[tuple[str, str], dict], dict]:
 # Comparison logic
 # ---------------------------------------------------------------------------
 def normalize_name(name: str) -> str:
-    """Lowercase + strip special chars for fuzzy matching."""
-    import re
-    return re.sub(r"[^a-z0-9 ]", "", name.lower()).strip()
+    """Lowercase + HTML-unescape + strip special chars for fuzzy matching."""
+    import re, html
+    return re.sub(r"[^a-z0-9]+", " ", html.unescape(name).lower()).strip()
 
 
 def compare(gencon: dict, ours: dict) -> dict:
