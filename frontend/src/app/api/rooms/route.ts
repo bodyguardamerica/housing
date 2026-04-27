@@ -48,10 +48,15 @@ export async function GET(request: NextRequest) {
       query = query.lte('check_out', checkOut)
     }
 
-    // Filter out sold-out rooms (available_count = 0) by default
+    // Filter out sold-out rooms by default. A room is "available" if either:
+    //   (a) full-stay available (available_count > 0), or
+    //   (b) partially available — at least one but not all nights bookable.
+    // Without the OR, the 50+ partial-availability rooms (3-of-4 nights open,
+    // etc.) are hidden even though the user can still book those individual
+    // nights via Passkey.
     const showSoldOut = searchParams.get('show_sold_out') === 'true'
     if (!showSoldOut) {
-      query = query.gt('available_count', 0)
+      query = query.or('available_count.gt.0,partial_availability.eq.true')
     }
 
     // Apply sorting
