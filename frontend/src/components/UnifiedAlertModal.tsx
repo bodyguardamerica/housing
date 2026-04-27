@@ -198,25 +198,34 @@ export function UnifiedAlertModal({
         }
       }
 
+      // Convert comma-separated mentions to space-separated for Discord
+      const processedMention = discordMention
+        .split(',')
+        .map(m => m.trim())
+        .filter(m => m.length > 0)
+        .join(' ')
+
+      // Build the full filter payload once — used by both create (POST) and
+      // edit (PATCH) so the server-side watcher always mirrors the alert UI.
+      const filterPayload = {
+        hotel_name_pattern: hotelName.trim() || null,
+        max_price: maxPrice ? parseFloat(maxPrice) : null,
+        max_distance: maxDistance ? parseFloat(maxDistance) : null,
+        require_skywalk: requireSkywalk,
+        included_areas: selectedAreas.length > 0 ? selectedAreas : null,
+        alert_name: name.trim(),
+        discord_mention: processedMention || null,
+      }
+
       // Create NEW Discord watcher only if enabled AND new webhook provided
       if (discordEnabled && discordWebhook) {
-        // Convert comma-separated mentions to space-separated for Discord
-        const processedMention = discordMention
-          .split(',')
-          .map(m => m.trim())
-          .filter(m => m.length > 0)
-          .join(' ')
         const response = await fetch('/api/watchers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             discord_webhook_url: discordWebhook,
-            discord_mention: processedMention || undefined,
-            max_price: maxPrice ? parseFloat(maxPrice) : undefined,
-            max_distance: maxDistance ? parseFloat(maxDistance) : undefined,
-            require_skywalk: requireSkywalk,
             cooldown_minutes: 15,
-            alert_name: name.trim(), // For test message
+            ...filterPayload,
           }),
         })
 
@@ -231,6 +240,32 @@ export function UnifiedAlertModal({
         const existingTokens = getWatcherTokens()
         existingTokens[data.id] = data.manage_token
         setWatcherTokens(existingTokens)
+      } else if (discordEnabled && editingAlert?.discordWatcherId) {
+        // Editing an alert that already has a Discord watcher — sync filter
+        // changes (hotel name, areas, price, distance, skywalk, mention,
+        // alert name) so the server matcher stays aligned with the UI.
+        try {
+          const tokens = getWatcherTokens()
+          const token = tokens[editingAlert.discordWatcherId]
+          if (token) {
+            await fetch(`/api/watchers?id=${editingAlert.discordWatcherId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(filterPayload),
+            })
+          } else {
+            console.warn(
+              'No manage token for watcher',
+              editingAlert.discordWatcherId,
+              '- filter changes will not sync to Discord matcher'
+            )
+          }
+        } catch (err) {
+          console.error('Failed to update Discord watcher filters:', err)
+        }
       }
 
       // Create local alert (always create so Discord can be linked)

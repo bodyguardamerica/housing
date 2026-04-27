@@ -9,12 +9,28 @@ interface CreateWatcherRequest {
   phone_number?: string
   push_subscription?: Record<string, unknown>
   hotel_id?: string
+  hotel_name_pattern?: string // Case-insensitive substring on hotels.name
   max_price?: number
   max_distance?: number
   require_skywalk?: boolean
   room_type_pattern?: string
+  included_areas?: string[] // Allow-list of hotels.area values
   cooldown_minutes?: number
-  alert_name?: string // Used for test message
+  alert_name?: string // Persisted; also used for the test message text
+}
+
+interface UpdateWatcherRequest {
+  discord_mention?: string | null
+  hotel_id?: string | null
+  hotel_name_pattern?: string | null
+  max_price?: number | null
+  max_distance?: number | null
+  require_skywalk?: boolean
+  room_type_pattern?: string | null
+  included_areas?: string[] | null
+  cooldown_minutes?: number
+  alert_name?: string | null
+  active?: boolean
 }
 
 // Send a test message to Discord webhook
@@ -82,11 +98,14 @@ export async function GET(request: NextRequest) {
         discord_webhook_url,
         discord_mention,
         hotel_id,
+        hotel_name_pattern,
         max_price,
         max_distance,
         require_skywalk,
         room_type_pattern,
+        included_areas,
         cooldown_minutes,
+        alert_name,
         active,
         created_at,
         hotels (name)
@@ -174,11 +193,17 @@ export async function POST(request: NextRequest) {
       push_subscription: body.push_subscription || null,
       manage_token_hash: manageTokenHash,
       hotel_id: body.hotel_id || null,
+      hotel_name_pattern: body.hotel_name_pattern?.trim() || null,
       max_price: body.max_price || null,
       max_distance: body.max_distance || null,
       require_skywalk: body.require_skywalk || false,
       room_type_pattern: body.room_type_pattern || null,
+      included_areas:
+        body.included_areas && body.included_areas.length > 0
+          ? body.included_areas
+          : null,
       cooldown_minutes: body.cooldown_minutes || 15,
+      alert_name: body.alert_name?.trim() || null,
       year: currentYear,
       active: true,
       notifications_sent_today: 0,
@@ -216,6 +241,88 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to create watcher' },
       { status: 500 }
     )
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const supabase = createServerClient()
+
+  try {
+    const watcherId = request.nextUrl.searchParams.get('id')
+    const authHeader = request.headers.get('authorization')
+
+    if (!watcherId) {
+      return NextResponse.json({ error: 'Watcher ID is required' }, { status: 400 })
+    }
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authorization header is required' },
+        { status: 401 }
+      )
+    }
+
+    const manageToken = authHeader.replace('Bearer ', '')
+    const manageTokenHash = hashToken(manageToken)
+
+    const { data: existing, error: fetchError } = (await supabase
+      .from('watchers')
+      .select('id, manage_token_hash')
+      .eq('id', watcherId)
+      .single()) as {
+      data: { id: string; manage_token_hash: string } | null
+      error: Error | null
+    }
+
+    if (fetchError || !existing) {
+      return NextResponse.json({ error: 'Watcher not found' }, { status: 404 })
+    }
+    if (existing.manage_token_hash !== manageTokenHash) {
+      return NextResponse.json({ error: 'Invalid manage token' }, { status: 401 })
+    }
+
+    const body: UpdateWatcherRequest = await request.json()
+
+    // Whitelist of fields that can be patched. Anything else is silently
+    // ignored — the manage_token only authorizes filter/notification edits,
+    // never destination/contact swaps (use DELETE+POST for that).
+    const updates: Record<string, unknown> = {}
+    if ('discord_mention' in body) updates.discord_mention = body.discord_mention || null
+    if ('hotel_id' in body) updates.hotel_id = body.hotel_id || null
+    if ('hotel_name_pattern' in body)
+      updates.hotel_name_pattern = body.hotel_name_pattern?.trim() || null
+    if ('max_price' in body) updates.max_price = body.max_price ?? null
+    if ('max_distance' in body) updates.max_distance = body.max_distance ?? null
+    if ('require_skywalk' in body) updates.require_skywalk = !!body.require_skywalk
+    if ('room_type_pattern' in body)
+      updates.room_type_pattern = body.room_type_pattern || null
+    if ('included_areas' in body) {
+      updates.included_areas =
+        body.included_areas && body.included_areas.length > 0
+          ? body.included_areas
+          : null
+    }
+    if ('cooldown_minutes' in body && body.cooldown_minutes)
+      updates.cooldown_minutes = body.cooldown_minutes
+    if ('alert_name' in body) updates.alert_name = body.alert_name?.trim() || null
+    if ('active' in body) updates.active = !!body.active
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ message: 'No changes' })
+    }
+
+    const { error: updateError } = await supabase
+      .from('watchers')
+      .update(updates as never)
+      .eq('id', watcherId)
+
+    if (updateError) {
+      throw updateError
+    }
+
+    return NextResponse.json({ message: 'Watcher updated', updated: Object.keys(updates) })
+  } catch (error) {
+    console.error('Error updating watcher:', error)
+    return NextResponse.json({ error: 'Failed to update watcher' }, { status: 500 })
   }
 }
 
