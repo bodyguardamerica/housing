@@ -25,7 +25,18 @@ export async function GET() {
       throw error
     }
 
-    return NextResponse.json({ data: hotels || [] })
+    // Hotels reference data changes only on rare scraper updates. Cache at
+    // the edge for 5 min, serve-stale for 1 hr. Cuts function invocations
+    // dramatically for repeated history-page loads.
+    return NextResponse.json(
+      { data: hotels || [] },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+          'CDN-Cache-Control': 'public, s-maxage=300',
+        },
+      }
+    )
   } catch (error) {
     console.error('Error fetching hotels:', error)
     return NextResponse.json(

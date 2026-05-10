@@ -174,7 +174,19 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    return NextResponse.json(response)
+    // Cache identical query strings at the Vercel edge for 30s with a
+    // 60s stale-while-revalidate window. The scraper runs every ~45s and
+    // mostly reports no_changes, so most repeats are byte-identical.
+    // Two tabs polling the same filters within 30s collapse to a single
+    // function invocation. Realtime WebSocket still pushes immediate
+    // updates on real changes — this only collapses the periodic
+    // fallback polls that drive most of the Vercel quota.
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        'CDN-Cache-Control': 'public, s-maxage=30',
+      },
+    })
   } catch (error) {
     console.error('Error fetching rooms:', error)
     return NextResponse.json(
