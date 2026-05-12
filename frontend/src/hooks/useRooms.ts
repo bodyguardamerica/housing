@@ -4,8 +4,14 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { RoomAvailability, RoomFilters, RoomsResponse } from '@/lib/types'
 
-// Fallback poll interval (only if Realtime fails)
-const FALLBACK_POLL_INTERVAL_MS = 60000
+// Safety-net poll cadence when Realtime IS connected. The push channel
+// fires on every scrape with changes, so this only catches the rare case
+// of a silently-dropped WebSocket. Bumped 60s -> 300s (5 min): Realtime
+// is doing the heavy lifting, and a 5-minute "are we still receiving
+// pushes?" check is plenty. ~80% reduction in /api/rooms invocations
+// from connected users; no impact on alert latency (Discord goes through
+// the scraper -> Supabase -> edge function path, never through here).
+const FALLBACK_POLL_INTERVAL_MS = 300000
 
 export function useRooms(filters: RoomFilters = {}) {
   const [rooms, setRooms] = useState<RoomAvailability[]>([])
