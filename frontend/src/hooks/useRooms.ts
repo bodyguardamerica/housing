@@ -21,7 +21,7 @@ export function useRooms(filters: RoomFilters = {}) {
   const [realtimeConnected, setRealtimeConnected] = useState(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
-  const fetchRooms = useCallback(async () => {
+  const fetchRooms = useCallback(async (opts?: { skipCache?: boolean }) => {
     try {
       const params = new URLSearchParams()
 
@@ -60,7 +60,14 @@ export function useRooms(filters: RoomFilters = {}) {
         params.set('show_sold_out', 'true')
       }
 
-      const response = await fetch(`/api/rooms?${params.toString()}`)
+      // When called from a Realtime change event, bypass the edge cache so
+      // the fresh post-change room data is read from PostgREST rather than
+      // the 60s-old cached response. Bare polls and the initial fetch
+      // happily use the cache.
+      const response = await fetch(
+        `/api/rooms?${params.toString()}`,
+        opts?.skipCache ? { cache: 'no-store' } : undefined
+      )
       if (!response.ok) {
         throw new Error('Failed to fetch rooms')
       }
@@ -83,7 +90,7 @@ export function useRooms(filters: RoomFilters = {}) {
 
   // Realtime subscription - listen for new successful scrapes
   useEffect(() => {
-    // Subscribe to scrape_runs table for INSERT events
+    // Subscribe to scrape_runs table for UPDATE events
     const channel = supabase
       .channel('scrape-updates')
       .on(
@@ -95,9 +102,28 @@ export function useRooms(filters: RoomFilters = {}) {
           filter: 'status=eq.success',
         },
         (payload) => {
-          // New successful scrape completed - refetch rooms
-          console.log('Realtime: New scrape completed, refreshing data...')
-          fetchRooms()
+          // Immediately reflect the new scrape time in the UI — the edge
+          // cache on /api/rooms holds responses for 60s, so a fetchRooms()
+          // right now would re-serve a response with a stale
+          // last_scrape_at, making the "X seconds ago" indicator tick up
+          // past a minute even though the scraper is firing every 25s.
+          // The Realtime payload already carries the fresh timestamp;
+          // use it directly.
+          const newRow = (payload.new ?? {}) as { completed_at?: string; no_changes?: boolean; status?: string }
+          if (newRow.completed_at) {
+            setMeta((prev) =>
+              prev
+                ? { ...prev, last_scrape_at: newRow.completed_at!, last_scrape_status: newRow.status ?? prev.last_scrape_status }
+                : prev
+            )
+          }
+          // Only refetch room data when the scrape actually changed
+          // something. ~95% of scrapes are no_changes — refetching those
+          // just serves cached bytes and burns Vercel quota for no win.
+          if (newRow.no_changes === false) {
+            console.log('Realtime: scrape detected changes, refreshing rooms (cache-busted)')
+            fetchRooms({ skipCache: true })
+          }
         }
       )
       .subscribe((status) => {
