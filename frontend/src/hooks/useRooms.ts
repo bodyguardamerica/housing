@@ -20,6 +20,10 @@ export function useRooms(filters: RoomFilters = {}) {
   const [error, setError] = useState<string | null>(null)
   const [realtimeConnected, setRealtimeConnected] = useState(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  // Tracks when the last Realtime push was applied to meta. If Realtime
+  // silently drops, this stays stale; a watchdog interval below detects
+  // that and bypasses the edge cache to refresh the timestamp.
+  const lastPushAtRef = useRef<number>(Date.now())
 
   const fetchRooms = useCallback(async (opts?: { skipCache?: boolean }) => {
     try {
@@ -111,6 +115,7 @@ export function useRooms(filters: RoomFilters = {}) {
           // use it directly.
           const newRow = (payload.new ?? {}) as { completed_at?: string; no_changes?: boolean; status?: string }
           if (newRow.completed_at) {
+            lastPushAtRef.current = Date.now()
             setMeta((prev) =>
               prev
                 ? { ...prev, last_scrape_at: newRow.completed_at!, last_scrape_status: newRow.status ?? prev.last_scrape_status }
@@ -145,11 +150,29 @@ export function useRooms(filters: RoomFilters = {}) {
     }
   }, [fetchRooms])
 
+  // Watchdog: if Realtime is "connected" but we haven't seen a push in
+  // longer than the scrape cadence, the WebSocket is probably dead
+  // without us knowing. Refresh with cache: 'no-store' to get a fresh
+  // last_scrape_at — that keeps the "X seconds ago" indicator from
+  // climbing past ~35s even when Realtime fails silently.
+  useEffect(() => {
+    if (!realtimeConnected) return
+    const STALE_AFTER_MS = 35000 // scrape cadence (25s) + margin
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastPushAtRef.current > STALE_AFTER_MS) {
+        fetchRooms({ skipCache: true })
+        // Don't reset lastPushAtRef here — only a real Realtime push
+        // should reset it, otherwise we'd silently mask the dropped WS.
+      }
+    }, 5000)
+    return () => clearInterval(watchdog)
+  }, [fetchRooms, realtimeConnected])
+
   // Fallback polling (only if Realtime is not connected)
   useEffect(() => {
     if (realtimeConnected) {
-      // Realtime is working, no need to poll frequently
-      // Still poll every 60s as a safety net
+      // Realtime is working — still keep a very low-frequency fallback
+      // poll as a "is the WebSocket even alive" liveness check.
       const fallbackInterval = setInterval(() => {
         fetchRooms()
       }, FALLBACK_POLL_INTERVAL_MS)
