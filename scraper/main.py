@@ -47,6 +47,15 @@ _last_scrape_hash: Optional[str] = None
 # Track previous scrape's data count to detect bad Passkey responses
 _last_good_nights_count: int = 0
 
+# Counter for consecutive no_changes runs. Passkey appears to serve
+# session-bound cached responses: a long-lived scraper session can see the
+# same response for hours/days while a fresh session sees real changes. To
+# defeat that, rotate the Passkey session every N consecutive no_changes.
+# Verified May 11 2026: 1000 no_changes runs while a fresh local session
+# saw three updated rooms that the production scraper missed.
+_consecutive_no_changes: int = 0
+SESSION_ROTATE_AFTER_NO_CHANGES = 20  # ~15 min at 45s cadence
+
 
 def get_hotel_cache(database: Database, year: int) -> dict[int, str]:
     """
@@ -180,6 +189,22 @@ async def run_scrape():
             # Still update baselines since data was valid
             _last_scrape_hash = current_hash
             _last_good_nights_count = len(result.nights)
+
+            # Increment the stale-session counter. If we've seen the same
+            # hash this many times in a row, force a fresh Passkey session
+            # on the NEXT scrape so we bust any server-side per-session
+            # cache. Counter resets to 0 on the next real change.
+            global _consecutive_no_changes
+            _consecutive_no_changes += 1
+            if _consecutive_no_changes >= SESSION_ROTATE_AFTER_NO_CHANGES:
+                logger.warning(
+                    f"Forcing Passkey session refresh after {_consecutive_no_changes} "
+                    f"consecutive no_changes runs (suspected session-bound stale cache)"
+                )
+                await passkey_client.close()
+                passkey_client._csrf_token = None
+                _consecutive_no_changes = 0
+
             duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
             await db.update_scrape_run(scrape_run_id, ScrapeRunUpdate(
                 completed_at=datetime.utcnow(),
@@ -205,6 +230,8 @@ async def run_scrape():
         # Update caches for next scrape
         update_room_keys_cache(snapshots, hotel_ids)
         _last_scrape_hash = current_hash
+        # Reset the stale-session counter since we just observed a change.
+        _consecutive_no_changes = 0
 
         # Update the "good data" baseline for detecting bad Passkey responses
         _last_good_nights_count = len(result.nights)
