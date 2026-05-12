@@ -102,6 +102,26 @@ class PasskeyClient:
             )
         return self._client
 
+    async def reset_session(self) -> None:
+        """Tear down the current HTTP client + CSRF token so the next call
+        gets a brand-new session.
+
+        Passkey appears to bind search results to a session for some
+        period — reusing one httpx client + cookie jar across many scrapes
+        can lock us to a stale view (verified May 11 2026: 45 hours of
+        no_changes while a fresh local session saw real availability
+        flips). The proven pattern in the reference scraper
+        (overallcoma/genconhotels) is to mint a fresh cookie jar on every
+        iteration. Cheap insurance: one extra GET /entry per scrape.
+        """
+        if self._client is not None:
+            try:
+                await self._client.aclose()
+            except Exception:
+                pass
+            self._client = None
+        self._csrf_token = None
+
     async def initialize_session(self) -> bool:
         """Initialize a session by visiting the token URL to get cookies."""
         client = await self._get_client()
@@ -311,6 +331,12 @@ class PasskeyClient:
 
         Returns ScrapeResult on success, None on failure.
         """
+        # Always start with a fresh session. Passkey can serve session-
+        # bound stale results to a long-lived cookie jar (see reset_session
+        # docstring). Retries within this scrape reuse the freshly-minted
+        # session — only the next outer scrape gets another reset.
+        await self.reset_session()
+
         for attempt in range(max_retries):
             try:
                 # Check if we should abort due to rate limiting
