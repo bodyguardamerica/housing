@@ -19,6 +19,50 @@ function createAuthClient(authHeader: string | null) {
   })
 }
 
+// Mirror an alert's filter criteria onto its linked Discord watcher so the
+// server-side matcher (match_watchers_for_snapshot) enforces the same
+// conditions the user sees in the alert UI. Runs with the service role —
+// the modal's client-side PATCH path needs a manage_token from
+// localStorage, which is lost across browsers/cleared storage, and a
+// failed sync there is silent. Ownership is already established: the
+// alert row was just written under RLS, so the linked watcher is the
+// user's own. (A desynced watcher is exactly how a "Embassy Suites only"
+// alert ended up firing for every downtown hotel.)
+async function syncWatcherFilters(alert: {
+  discord_watcher_id?: string | null
+  name?: string | null
+  hotel_name?: string | null
+  max_price?: number | null
+  max_distance?: number | null
+  require_skywalk?: boolean | null
+  included_areas?: string[] | null
+}) {
+  if (!alert?.discord_watcher_id) return
+  const serviceClient = createClient(supabaseUrl, supabaseServiceKey)
+  const { error } = await serviceClient
+    .from('watchers')
+    .update({
+      alert_name: alert.name?.trim() || null,
+      hotel_name_pattern: alert.hotel_name?.trim() || null,
+      max_price: alert.max_price ?? null,
+      max_distance: alert.max_distance ?? null,
+      require_skywalk: !!alert.require_skywalk,
+      included_areas:
+        alert.included_areas && alert.included_areas.length > 0
+          ? alert.included_areas
+          : null,
+    })
+    .eq('id', alert.discord_watcher_id)
+  if (error) {
+    // Log loudly but don't fail the alert save — the alert row is the
+    // source of truth and a retry on next edit will re-sync.
+    console.error(
+      `Failed to sync watcher ${alert.discord_watcher_id} from alert:`,
+      error
+    )
+  }
+}
+
 // GET - Fetch user's alerts
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -103,6 +147,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create alert' }, { status: 500 })
   }
 
+  await syncWatcherFilters(alert)
+
   console.log('POST /api/alerts - Created alert:', JSON.stringify(alert, null, 2))
   return NextResponse.json({ data: alert })
 }
@@ -158,6 +204,8 @@ export async function PUT(request: NextRequest) {
     console.error('Error updating alert:', error)
     return NextResponse.json({ error: 'Failed to update alert' }, { status: 500 })
   }
+
+  await syncWatcherFilters(alert)
 
   return NextResponse.json({ data: alert })
 }
