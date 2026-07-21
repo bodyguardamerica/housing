@@ -6,6 +6,7 @@ import { useAlerts } from '@/hooks/useAlerts'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasskeyUrl } from '@/hooks/usePasskeyUrl'
 import { StatusBar } from '@/components/StatusBar'
+import { SiteBanner } from '@/components/SiteBanner'
 import { FilterBar } from '@/components/FilterBar'
 import { RoomTable } from '@/components/RoomTable'
 import { RoomCardList } from '@/components/RoomCard'
@@ -241,6 +242,9 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Off-season / paused banner (driven by app_config) */}
+      <SiteBanner />
+
       {/* Status Bar */}
       {meta && (
         <StatusBar
